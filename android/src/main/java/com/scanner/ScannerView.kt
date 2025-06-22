@@ -2,6 +2,7 @@ package com.scanner
 
 import android.content.Context
 import android.graphics.*
+import android.hardware.camera2.CameraCharacteristics
 import android.util.AttributeSet
 import android.util.Log
 import android.util.Size
@@ -37,7 +38,8 @@ class ScannerView : FrameLayout {
   // Frame configuration
   private var enableFrame: Boolean = false
   private var frameColor: Int = Color.WHITE
-  private var frameSize: Int = 350 // Updated default frame size
+  private var frameSize: FrameSize = FrameSize.Square(350)
+  private var barcodeFrameConfigs: List<BarcodeFrameConfig> = emptyList()
 
   // React context for event emission
   private var reactContext: ThemedReactContext? = null
@@ -45,6 +47,8 @@ class ScannerView : FrameLayout {
   private var zoom: Float = 1.0f
   private var torchEnabled: Boolean = false
   private var isScanningPaused: Boolean = false
+
+  // Focus metering listener for cleanup
 
   constructor(context: Context) : super(context) {
     initScannerView(context)
@@ -138,9 +142,12 @@ class ScannerView : FrameLayout {
   }
 
   private fun stopCamera() {
+    camera?.cameraControl?.cancelFocusAndMetering()
     cameraProvider?.unbindAll()
     cameraExecutor.shutdown()
     barcodeScanner.close()
+
+    Log.e("ScannerView", "Camera stopped.")
   }
 
   private fun bindCameraUseCases() {
@@ -197,10 +204,40 @@ class ScannerView : FrameLayout {
       camera?.cameraControl?.enableTorch(torchEnabled)
       setZoom(zoom)
 
+      // Set up auto-focus on frame center
+      setupAutoFocusOnFrame()
+
     } catch (exc: Exception) {
       Log.e("ScannerView", "Use case binding failed", exc)
     }
   }
+
+private fun setupAutoFocusOnFrame() {
+  if (!enableFrame) return
+
+  val frame = overlayView?.frameRect ?: return
+  val centerX = frame.centerX()
+  val centerY = frame.centerY()
+
+  val viewWidth = previewView?.width ?: return
+  val viewHeight = previewView?.height ?: return
+
+  val normalizedX = centerX / viewWidth
+  val normalizedY = centerY / viewHeight
+
+  val meteringPointFactory = previewView?.meteringPointFactory ?: return
+  val afPoint = meteringPointFactory.createPoint(normalizedX, normalizedY)
+
+  val focusAction = FocusMeteringAction.Builder(afPoint, FocusMeteringAction.FLAG_AF)
+    .disableAutoCancel() // Optional: maintain focus
+    .build()
+
+  camera?.cameraControl?.startFocusAndMetering(focusAction)
+    ?.addListener({
+      Log.d("ScannerView", "Auto-focus to frame center triggered")
+    }, ContextCompat.getMainExecutor(context))
+}
+
 
   @OptIn(ExperimentalGetImage::class)
   private fun processImage(imageProxy: ImageProxy) {
@@ -271,6 +308,11 @@ class ScannerView : FrameLayout {
   fun setEnableFrame(enable: Boolean) {
     enableFrame = enable
     overlayView?.setEnableFrame(enable)
+
+    // Update focus when frame is toggled
+    if (camera != null) {
+      setupAutoFocusOnFrame()
+    }
   }
 
   fun setFrameColor(color: String) {
@@ -282,9 +324,14 @@ class ScannerView : FrameLayout {
     }
   }
 
-  fun setFrameSize(size: Int) {
+  fun setFrameSize(size: FrameSize) {
     frameSize = size
     overlayView?.setFrameSize(size)
+  }
+
+  fun setBarcodeFrameConfigs(configs: List<BarcodeFrameConfig>) {
+    barcodeFrameConfigs = configs
+    overlayView?.setBarcodeFrameConfigs(configs)
   }
 
   fun setZoom(zoom: Float) {
@@ -370,7 +417,8 @@ private fun transformBarcodeBoundingBox(
 class FrameOverlayView : View {
   private var enableFrame: Boolean = false
   private var frameColor: Int = Color.WHITE
-  private var frameSize: Int = 350 // Updated default frame size
+  private var frameSize: FrameSize = FrameSize.Square(350)
+  private var barcodeFrameConfigs: List<BarcodeFrameConfig> = emptyList()
   var frameRect: RectF? = null
     private set
 
@@ -398,22 +446,31 @@ class FrameOverlayView : View {
     val centerX = width / 2f
     val centerY = height / 2f
 
-    // Option 1: Convert logical pixels to physical pixels using device density
-    val density = context.resources.displayMetrics.density
-    val frameSizePhysical = (frameSize * density)
+    // Calculate frame dimensions based on frameSize type
+    val currentFrameSize = frameSize // Local copy to avoid smart cast issues
+    val (frameWidth, frameHeight) = when (currentFrameSize) {
+      is FrameSize.Square -> {
+        val density = context.resources.displayMetrics.density
+        val size = currentFrameSize.size * density
+        size to size
+      }
+      is FrameSize.Rectangle -> {
+        val density = context.resources.displayMetrics.density
+        val width = currentFrameSize.width * density
+        val height = currentFrameSize.height * density
+        width to height
+      }
+    }
 
-    // Option 2: Make frame size relative to screen (uncomment to use)
-    // val screenSize = minOf(width, height)
-    // val frameSizePhysical = (screenSize * frameSize / 100f).toInt()
-
-    val frameHalfSize = frameSizePhysical / 2f
+    val frameHalfWidth = frameWidth / 2f
+    val frameHalfHeight = frameHeight / 2f
 
     // Calculate frame rectangle
     frameRect = RectF(
-      centerX - frameHalfSize,
-      centerY - frameHalfSize,
-      centerX + frameHalfSize,
-      centerY + frameHalfSize
+      centerX - frameHalfWidth,
+      centerY - frameHalfHeight,
+      centerX + frameHalfWidth,
+      centerY + frameHalfHeight
     )
 
     // Draw semi-transparent overlay
@@ -451,8 +508,15 @@ class FrameOverlayView : View {
     invalidate()
   }
 
-  fun setFrameSize(size: Int) {
+  fun setFrameSize(size: FrameSize) {
     frameSize = size
+    invalidate()
+  }
+
+  fun setBarcodeFrameConfigs(configs: List<BarcodeFrameConfig>) {
+    barcodeFrameConfigs = configs
+    // For now, we'll use the first config or default frame size
+    // In the future, this could be used to dynamically change frame based on detected barcode type
     invalidate()
   }
 }

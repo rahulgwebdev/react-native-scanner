@@ -34,6 +34,36 @@ class ScannerViewManager : SimpleViewManager<ScannerView>() {
     }
   }
 
+  @ReactProp(name = "barcodeFrameConfigs")
+  fun setBarcodeFrameConfigs(view: ScannerView?, configs: ReadableArray?) {
+    if (configs != null) {
+      val configList = mutableListOf<BarcodeFrameConfig>()
+      for (i in 0 until configs.size()) {
+        val config = configs.getMap(i)
+        if (config != null) {
+          val format = config.getString("format") ?: ""
+          val frameSize = config.getDynamic("frameSize")
+          val frameColor = config.getString("frameColor")
+          
+          val size: FrameSize = when {
+            frameSize.type == ReadableType.Number -> FrameSize.Square(frameSize.asInt())
+            frameSize.type == ReadableType.Map -> {
+              val frameSizeMap = frameSize.asMap()
+              val width = frameSizeMap.getInt("width")
+              val height = frameSizeMap.getInt("height")
+              FrameSize.Rectangle(width, height)
+            }
+            else -> FrameSize.Square(350) // Default
+          }
+          
+          configList.add(BarcodeFrameConfig(format, size, frameColor))
+        }
+      }
+      view?.setBarcodeFrameConfigs(configList)
+      Log.d("ScannerViewManager", "Barcode frame configs set: $configList")
+    }
+  }
+
   // Frame configuration
   @ReactProp(name = "enableFrame")
   fun setEnableFrame(view: ScannerView?, enable: Boolean?) {
@@ -48,8 +78,18 @@ class ScannerViewManager : SimpleViewManager<ScannerView>() {
   }
 
   @ReactProp(name = "frameSize")
-  fun setFrameSize(view: ScannerView?, size: Int?) {
-    if (size != null) {
+  fun setFrameSize(view: ScannerView?, frameSize: Dynamic?) {
+    if (frameSize != null) {
+      val size: FrameSize = when {
+        frameSize.type == ReadableType.Number -> FrameSize.Square(frameSize.asInt())
+        frameSize.type == ReadableType.Map -> {
+          val frameSizeMap = frameSize.asMap()
+          val width = frameSizeMap.getInt("width")
+          val height = frameSizeMap.getInt("height")
+          FrameSize.Rectangle(width, height)
+        }
+        else -> FrameSize.Square(350) // Default
+      }
       view?.setFrameSize(size)
     }
   }
@@ -116,3 +156,15 @@ class ScannerViewManager : SimpleViewManager<ScannerView>() {
     return map
   }
 }
+
+// Data classes for frame configuration
+sealed class FrameSize {
+  data class Square(val size: Int) : FrameSize()
+  data class Rectangle(val width: Int, val height: Int) : FrameSize()
+}
+
+data class BarcodeFrameConfig(
+  val format: String,
+  val frameSize: FrameSize,
+  val frameColor: String? = null
+)

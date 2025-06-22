@@ -29,29 +29,46 @@ const examples: ExampleCard[] = [
   },
   {
     id: '2',
-    title: 'Basic Scanner',
-    description: 'Simple scanner without frame overlay (coming soon)',
-    route: 'Home', // Placeholder
-    icon: '🔍',
+    title: 'Rectangular Frame Scanner',
+    description:
+      'Scanner with rectangular frames optimized for different barcode types',
+    route: 'RectangularFrameExample',
+    icon: '📐',
     color: '#34C759',
   },
   {
     id: '3',
+    title: 'Camera Info',
+    description: 'Show device camera capabilities (zoom, torch, macro, etc)',
+    route: 'CameraInfoExample',
+    icon: '🛠️',
+    color: '#FFD93D',
+  },
+  {
+    id: '4',
+    title: 'Basic Scanner',
+    description: 'Simple scanner without frame overlay (coming soon)',
+    route: 'Home', // Placeholder
+    icon: '🔍',
+    color: '#FF9500',
+  },
+  {
+    id: '5',
     title: 'Custom Frame Scanner',
     description:
       'Scanner with customizable frame size and colors (coming soon)',
     route: 'Home', // Placeholder
     icon: '🎨',
-    color: '#FF9500',
+    color: '#AF52DE',
   },
   {
-    id: '4',
+    id: '6',
     title: 'Multi-Format Scanner',
     description:
       'Scanner configured for specific barcode formats (coming soon)',
     route: 'Home', // Placeholder
     icon: '📊',
-    color: '#AF52DE',
+    color: '#FF3B30',
   },
 ];
 

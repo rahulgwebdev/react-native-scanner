@@ -15,6 +15,53 @@ export enum BarcodeFormat {
   ITF = 'ITF',
 }
 
+// Frame size configuration - can be a number (square) or object (rectangle)
+export type FrameSize = number | { width: number; height: number };
+
+// Barcode-specific frame configuration
+export type BarcodeFrameConfig = {
+  format: BarcodeFormat;
+  frameSize: FrameSize;
+  frameColor?: string;
+};
+
+// Camera information types
+export type CameraFacing = 'front' | 'back' | 'unknown';
+
+export type ZoomRange = {
+  min: number;
+  max: number;
+};
+
+export type CameraInfo = {
+  id: string;
+  facing: CameraFacing;
+  sensorOrientation: number;
+  minFocusDistance: number;
+  hasFlash: boolean;
+  isMacroCamera: boolean;
+  zoomMin: number;
+  zoomMax: number;
+  focalLengths: string[];
+  aeModes: string[];
+  afModes: string[];
+};
+
+export type DeviceCameraInfo = {
+  cameras: CameraInfo[];
+  defaultBackCamera: string;
+  defaultFrontCamera: string;
+};
+
+export type CurrentCameraInfo = {
+  status: string;
+  message: string;
+  // Additional properties when camera is bound
+  currentZoom?: number;
+  isTorchEnabled?: boolean;
+  focusMode?: string;
+};
+
 // Barcode scanned event payload
 export type BarcodeScannedEventPayload = {
   data: string;
@@ -45,10 +92,12 @@ export type CameraNativeModuleEvents = {
 export type CameraNativeModuleViewProps = {
   // Barcode configuration
   barcodeTypes?: BarcodeFormat[];
+  barcodeFrameConfigs?: BarcodeFrameConfig[];
 
   // Frame configuration
   enableFrame?: boolean;
   frameColor?: string;
+  frameSize?: FrameSize;
 
   // Torch control
   torch?: boolean;

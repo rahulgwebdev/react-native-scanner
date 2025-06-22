@@ -14,6 +14,8 @@ class ScannerViewPackage : ReactPackage {
   }
 
   override fun createNativeModules(reactContext: ReactApplicationContext): List<NativeModule> {
-    return emptyList()
+    val modules: MutableList<NativeModule> = ArrayList()
+    modules.add(CameraInfoModule(reactContext))
+    return modules
   }
 }
