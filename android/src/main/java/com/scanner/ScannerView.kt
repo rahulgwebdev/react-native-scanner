@@ -39,9 +39,6 @@ class ScannerView : FrameLayout {
   private var frameColor: Int = Color.WHITE
   private var frameSize: Int = 350 // Updated default frame size
 
-  // Frame dimensions
-  private var frameRect: RectF? = null
-
   // React context for event emission
   private var reactContext: ThemedReactContext? = null
 
@@ -215,33 +212,43 @@ class ScannerView : FrameLayout {
       }
 
       val mediaImage = imageProxy.image
-      if (mediaImage != null) {
+      if (mediaImage != null && previewView != null) {
         val image = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
+        val transformationInfo = ImageAnalysisTransformationInfo(
+          resolution = Size(imageProxy.width, imageProxy.height),
+          rotationDegrees = imageProxy.imageInfo.rotationDegrees
+        )
 
         barcodeScanner.process(image)
           .addOnSuccessListener { barcodes ->
             if (barcodes.isNotEmpty()) {
               val barcode = barcodes[0]
-              Log.d("ScannerView", "Barcode detected: ${barcode.rawValue}")
+              val frame = overlayView?.frameRect
+              val barcodeBox = barcode.boundingBox
 
-              // Pause scanning to prevent multiple scans
-              isScanningPaused = true
+              if (frame != null && barcodeBox != null) {
+                val transformedBarcodeBox = transformBarcodeBoundingBox(barcodeBox, transformationInfo, previewView!!)
+                if (frame.contains(transformedBarcodeBox)) {
+                  Log.d("ScannerView", "Barcode detected inside frame: ${barcode.rawValue}")
+                  isScanningPaused = true // Pause scanning to prevent multiple scans
 
-              // Create event data
-              val eventData = Arguments.createMap().apply {
-                putString("data", barcode.rawValue)
-                putString("format", barcode.format.toString())
-                putDouble("timestamp", System.currentTimeMillis().toDouble())
-              }
-
-              // Emit as a bubbling event to the JS component
-              val ctx = reactContext
-              if (ctx is com.facebook.react.uimanager.ThemedReactContext) {
-                  ctx.runOnUiQueueThread {
-                      ctx
-                          .getJSModule(com.facebook.react.uimanager.events.RCTEventEmitter::class.java)
-                          .receiveEvent(this@ScannerView.id, "onBarcodeScanned", eventData)
+                  val eventData = Arguments.createMap().apply {
+                    putString("data", barcode.rawValue)
+                    putString("format", barcode.format.toString())
+                    putDouble("timestamp", System.currentTimeMillis().toDouble())
                   }
+
+                  val ctx = reactContext
+                  if (ctx is com.facebook.react.uimanager.ThemedReactContext) {
+                    ctx.runOnUiQueueThread {
+                      ctx
+                        .getJSModule(com.facebook.react.uimanager.events.RCTEventEmitter::class.java)
+                        .receiveEvent(this@ScannerView.id, "onBarcodeScanned", eventData)
+                    }
+                  }
+                } else {
+                    Log.d("ScannerView", "Barcode detected outside frame. Ignoring. Frame: $frame, Barcode box (transformed): $transformedBarcodeBox")
+                }
               }
             }
           }
@@ -314,12 +321,58 @@ class ScannerView : FrameLayout {
   }
 }
 
+private data class ImageAnalysisTransformationInfo(
+  val resolution: Size,
+  val rotationDegrees: Int
+)
+
+private fun transformBarcodeBoundingBox(
+  barcodeBoundingBox: Rect,
+  imageAnalysisInfo: ImageAnalysisTransformationInfo,
+  previewView: View
+): RectF {
+  // Get image analysis resolution and rotation
+  val imageWidth = imageAnalysisInfo.resolution.width
+  val imageHeight = imageAnalysisInfo.resolution.height
+  val imageRotation = imageAnalysisInfo.rotationDegrees
+
+  // Adjust for rotation
+  val (rotatedWidth, rotatedHeight) = if (imageRotation == 90 || imageRotation == 270) {
+    imageHeight to imageWidth
+  } else {
+    imageWidth to imageHeight
+  }
+
+  // Get preview view dimensions
+  val viewWidth = previewView.width
+  val viewHeight = previewView.height
+
+  // Calculate scale factors
+  val scaleX = viewWidth.toFloat() / rotatedWidth
+  val scaleY = viewHeight.toFloat() / rotatedHeight
+  val scale = maxOf(scaleX, scaleY) // For FILL_CENTER
+
+  // Calculate offsets
+  val offsetX = (viewWidth - rotatedWidth * scale) / 2
+  val offsetY = (viewHeight - rotatedHeight * scale) / 2
+
+  // Transform the bounding box
+  val transformedRect = RectF(barcodeBoundingBox)
+  transformedRect.left = transformedRect.left * scale + offsetX
+  transformedRect.top = transformedRect.top * scale + offsetY
+  transformedRect.right = transformedRect.right * scale + offsetX
+  transformedRect.bottom = transformedRect.bottom * scale + offsetY
+
+  return transformedRect
+}
+
 // Separate overlay view for frame drawing
 class FrameOverlayView : View {
   private var enableFrame: Boolean = false
   private var frameColor: Int = Color.WHITE
   private var frameSize: Int = 350 // Updated default frame size
-  private var frameRect: RectF? = null
+  var frameRect: RectF? = null
+    private set
 
   constructor(context: Context) : super(context) {
     setWillNotDraw(false)
@@ -337,10 +390,7 @@ class FrameOverlayView : View {
     super.onDraw(canvas)
 
     if (enableFrame) {
-      Log.d("FrameOverlayView", "Drawing frame: ${width}x${height}, size: $frameSize, color: $frameColor")
       drawFrame(canvas)
-    } else {
-      Log.d("FrameOverlayView", "Frame disabled")
     }
   }
 
@@ -350,15 +400,13 @@ class FrameOverlayView : View {
 
     // Option 1: Convert logical pixels to physical pixels using device density
     val density = context.resources.displayMetrics.density
-    val frameSizePhysical = (frameSize * density).toInt()
+    val frameSizePhysical = (frameSize * density)
 
     // Option 2: Make frame size relative to screen (uncomment to use)
     // val screenSize = minOf(width, height)
     // val frameSizePhysical = (screenSize * frameSize / 100f).toInt()
 
     val frameHalfSize = frameSizePhysical / 2f
-
-    Log.d("FrameOverlayView", "Screen: ${width}x${height}, frameSize: ${frameSize}dp -> ${frameSizePhysical}px, density: $density")
 
     // Calculate frame rectangle
     frameRect = RectF(
@@ -395,19 +443,16 @@ class FrameOverlayView : View {
 
   fun setEnableFrame(enable: Boolean) {
     enableFrame = enable
-    Log.d("FrameOverlayView", "setEnableFrame: $enable")
     invalidate()
   }
 
   fun setFrameColor(color: Int) {
     frameColor = color
-    Log.d("FrameOverlayView", "setFrameColor: $color")
     invalidate()
   }
 
   fun setFrameSize(size: Int) {
     frameSize = size
-    Log.d("FrameOverlayView", "setFrameSize: $size")
     invalidate()
   }
 }
