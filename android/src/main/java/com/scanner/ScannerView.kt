@@ -30,6 +30,7 @@ import com.scanner.views.BarcodeFrameOverlayView
 import java.util.concurrent.ConcurrentHashMap
 
 class ScannerView : FrameLayout {
+  private var TAG: String = "ScannerView"
   private var cameraProvider: ProcessCameraProvider? = null
   private var camera: androidx.camera.core.Camera? = null
   private var imageAnalyzer: ImageAnalysis? = null
@@ -39,6 +40,8 @@ class ScannerView : FrameLayout {
   private var previewView: PreviewView? = null
   private var overlayView: FrameOverlayView? = null
   private var barcodeFrameOverlayView: BarcodeFrameOverlayView? = null
+  @Volatile
+  private var coordinateTransform: Matrix? = null
 
   // Frame configuration
   private var enableFrame: Boolean = false
@@ -126,7 +129,7 @@ class ScannerView : FrameLayout {
 
   override fun onAttachedToWindow() {
     super.onAttachedToWindow()
-    Log.d("ScannerView", "View attached to window, starting camera directly")
+    Log.d(TAG, "View attached to window, starting camera directly")
     startCamera()
   }
 
@@ -137,10 +140,10 @@ class ScannerView : FrameLayout {
   }
 
   private fun startCamera() {
-    Log.d("ScannerView", "Starting camera...")
+    Log.d(TAG, "Starting camera...")
 
     if (!hasCameraPermission()) {
-      Log.e("ScannerView", "Camera permission not granted")
+      Log.e(TAG, "Camera permission not granted")
       return
     }
 
@@ -148,14 +151,14 @@ class ScannerView : FrameLayout {
     cameraProviderFuture.addListener({
       try {
         cameraProvider = cameraProviderFuture.get()
-        Log.d("ScannerView", "CameraProvider obtained")
+        Log.d(TAG, "CameraProvider obtained")
 
         previewView?.post {
-          Log.d("ScannerView", "Binding camera use cases on UI thread")
+          Log.d(TAG, "Binding camera use cases on UI thread")
           bindCameraUseCases()
         }
       } catch (e: Exception) {
-        Log.e("ScannerView", "Failed to initialize camera", e)
+        Log.e(TAG, "Failed to initialize camera", e)
       }
 //    }, ContextCompat.getMainExecutor(context))
     }, cameraExecutor)
@@ -167,16 +170,16 @@ class ScannerView : FrameLayout {
     cameraExecutor.shutdown()
     barcodeScanner.close()
 
-    Log.e("ScannerView", "Camera stopped.")
+    Log.e(TAG, "Camera stopped.")
   }
 
   private fun bindCameraUseCases() {
     val cameraProvider = cameraProvider ?: run {
-      Log.e("ScannerView", "Camera provider not available for binding.")
+      Log.e(TAG, "Camera provider not available for binding.")
       return
     }
     val lifecycleOwner = reactContext?.currentActivity as? LifecycleOwner ?: run {
-      Log.e("ScannerView", "No LifecycleOwner available for binding.")
+      Log.e(TAG, "No LifecycleOwner available for binding.")
       return
     }
 
@@ -186,7 +189,7 @@ class ScannerView : FrameLayout {
     try {
       val surfaceProvider = previewView?.surfaceProvider
       if (surfaceProvider == null) {
-        Log.e("ScannerView", "SurfaceProvider is null! Cannot bind.")
+        Log.e(TAG, "SurfaceProvider is null! Cannot bind.")
         return
       }
 
@@ -228,7 +231,7 @@ class ScannerView : FrameLayout {
       setupAutoFocusOnFrame()
 
     } catch (exc: Exception) {
-      Log.e("ScannerView", "Use case binding failed", exc)
+      Log.e(TAG, "Use case binding failed", exc)
     }
   }
 
@@ -254,7 +257,7 @@ private fun setupAutoFocusOnFrame() {
 
   camera?.cameraControl?.startFocusAndMetering(focusAction)
     ?.addListener({
-      Log.d("ScannerView", "Auto-focus to frame center triggered")
+      Log.d(TAG, "Auto-focus to frame center triggered")
     }, ContextCompat.getMainExecutor(context))
 }
 
@@ -268,23 +271,23 @@ private fun processImage(imageProxy: ImageProxy) {
         return
       }
 
-  val mediaImage = imageProxy.image
+      val mediaImage = imageProxy.image
   if (mediaImage != null && previewView != null) {
-    val image = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
+        val image = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
     val transformationInfo = ImageAnalysisTransformationInfo(
       resolution = Size(imageProxy.width, imageProxy.height),
       rotationDegrees = imageProxy.imageInfo.rotationDegrees
     )
 
-    barcodeScanner.process(image)
-      .addOnSuccessListener { barcodes ->
+        barcodeScanner.process(image)
+          .addOnSuccessListener { barcodes ->
         // Update barcode frames for all detected barcodes
         updateBarcodeFrames(barcodes, transformationInfo)
         
         // Process barcode detection for the main scanning logic
         if (barcodes.isNotEmpty()) {
           val barcode = barcodes[0]
-          val frame = overlayView?.frameRect
+            val frame = overlayView?.frameRect
           val barcodeBox = barcode.boundingBox
 
           if (frame != null && barcodeBox != null && !isScanningPaused) {
@@ -292,40 +295,40 @@ private fun processImage(imageProxy: ImageProxy) {
             if (frame.contains(transformedBarcodeBox)) {
               Log.d("ScannerView", "Barcode detected inside frame: ${barcode.rawValue}")
 
-              val eventData = Arguments.createMap().apply {
+                    val eventData = Arguments.createMap().apply {
                 putString("data", barcode.rawValue)
                 putString("format", barcode.format.toString())
-                putDouble("timestamp", System.currentTimeMillis().toDouble())
-              }
+                        putDouble("timestamp", System.currentTimeMillis().toDouble())
+                    }
 
-              val ctx = reactContext
+                    val ctx = reactContext
               if (ctx is com.facebook.react.uimanager.ThemedReactContext) {
-                ctx.runOnUiQueueThread {
+                        ctx.runOnUiQueueThread {
                   ctx
                     .getJSModule(com.facebook.react.uimanager.events.RCTEventEmitter::class.java)
-                    .receiveEvent(this@ScannerView.id, "onBarcodeScanned", eventData)
-                }
-              }
-            } else {
+                                .receiveEvent(this@ScannerView.id, "onBarcodeScanned", eventData)
+                        }
+                    }
+                } else {
                 Log.d("ScannerView", "Barcode detected outside frame. Ignoring. Frame: $frame, Barcode box (transformed): $transformedBarcodeBox")
             }
+                }
+            }
           }
-        }
-      }
       .addOnFailureListener { e ->
-        Log.e("ScannerView", "Barcode scanning failed", e)
+        Log.e(TAG, "Barcode scanning failed", e)
       }
       .addOnCompleteListener {
         imageProxy.close()
       }
-  } else {
+      } else {
         imageProxy.close()
       }
     } catch (e: Exception) {
-      Log.e("ScannerView", "Error processing image", e)
-    imageProxy.close()
+      Log.e(TAG, "Error processing image", e)
+      imageProxy.close()
+    }
   }
-}
 
   // Frame setter methods
   fun setEnableFrame(enable: Boolean) {
@@ -343,7 +346,7 @@ private fun processImage(imageProxy: ImageProxy) {
       frameColor = Color.parseColor(color)
       overlayView?.setFrameColor(frameColor)
     } catch (e: Exception) {
-      Log.e("ScannerView", "Invalid color format: $color")
+      Log.e(TAG, "Invalid color format: $color")
     }
   }
 
@@ -364,7 +367,7 @@ private fun processImage(imageProxy: ImageProxy) {
     if (zoomState != null) {
         val newZoom = zoom.coerceIn(zoomState.minZoomRatio, zoomState.maxZoomRatio)
         camera?.cameraControl?.setZoomRatio(newZoom)
-        Log.d("ScannerView", "Setting zoom to $newZoom (requested $zoom)")
+        Log.d(TAG, "Setting zoom to $newZoom (requested $zoom)")
     } else {
         camera?.cameraControl?.setZoomRatio(zoom)
     }
@@ -373,17 +376,17 @@ private fun processImage(imageProxy: ImageProxy) {
   fun setTorch(enabled: Boolean) {
     torchEnabled = enabled
     camera?.cameraControl?.enableTorch(enabled)
-    Log.d("ScannerView", "Torch ${if (enabled) "enabled" else "disabled"}")
+    Log.d(TAG, "Torch ${if (enabled) "enabled" else "disabled"}")
   }
 
   fun resumeScanning() {
     isScanningPaused = false
-    Log.d("ScannerView", "Scanning resumed")
+    Log.d(TAG, "Scanning resumed")
   }
 
   fun pauseScanning() {
     isScanningPaused = true
-    Log.d("ScannerView", "Scanning paused")
+    Log.d(TAG, "Scanning paused")
   }
 
   private fun hasCameraPermission(): Boolean {
@@ -394,19 +397,19 @@ private fun processImage(imageProxy: ImageProxy) {
     frameCleanupExecutor.scheduleAtFixedRate({
       val currentTime = System.currentTimeMillis()
       val framesToRemove = mutableListOf<String>()
-      
+
       activeBarcodeFrames.forEach { (barcodeValue, frame) ->
         if (currentTime - frame.lastSeenTime > 1000) { // 1 second timeout
           framesToRemove.add(barcodeValue)
         }
       }
-      
+
       if (framesToRemove.isNotEmpty()) {
         framesToRemove.forEach { barcodeValue ->
           activeBarcodeFrames.remove(barcodeValue)
         }
         updateBarcodeFramesDisplay()
-        Log.d("ScannerView", "Removed ${framesToRemove.size} stale barcode frames")
+        Log.d(TAG, "Removed ${framesToRemove.size} stale barcode frames")
       }
     }, 100, 100, java.util.concurrent.TimeUnit.MILLISECONDS)
   }
@@ -430,20 +433,20 @@ private fun processImage(imageProxy: ImageProxy) {
         transformationInfo,
         previewView!!
       )
-      
+
       // Update existing frame or create new one
       activeBarcodeFrames[barcodeValue] = BarcodeFrame(
         rect = transformedRect,
         lastSeenTime = currentTime
       )
     }
-    
+
     // Remove frames for barcodes no longer visible
     val framesToRemove = activeBarcodeFrames.keys.filter { it !in currentBarcodeValues }
     framesToRemove.forEach { barcodeValue ->
       activeBarcodeFrames.remove(barcodeValue)
     }
-    
+
     // Update display
     updateBarcodeFramesDisplay()
   }
