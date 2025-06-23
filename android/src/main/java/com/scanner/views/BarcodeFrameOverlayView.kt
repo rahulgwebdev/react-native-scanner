@@ -16,9 +16,6 @@ class BarcodeFrameOverlayView : View {
     style = Paint.Style.STROKE
     strokeWidth = 5f
   }
-  private val boxSize = 50f
-  private val boxHalfSize = boxSize / 2
-  private val reusableRect = RectF()
 
   constructor(context: Context) : super(context) {
     setWillNotDraw(false)
@@ -40,15 +37,7 @@ class BarcodeFrameOverlayView : View {
   override fun onDraw(canvas: Canvas) {
     super.onDraw(canvas)
     for (box in barcodeBoxes) {
-      val centerX = box.centerX()
-      val centerY = box.centerY()
-      reusableRect.set(
-        /* left = */ centerX - boxHalfSize,
-        /* top = */ centerY - boxHalfSize,
-        /* right = */ centerX + boxHalfSize,
-        /* bottom = */ centerY + boxHalfSize
-      )
-      canvas.drawRect(reusableRect, paint)
+      canvas.drawRect(box, paint)
     }
   }
 }

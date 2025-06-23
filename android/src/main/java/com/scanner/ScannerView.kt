@@ -26,6 +26,8 @@ import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import androidx.core.graphics.toColorInt
 import com.scanner.views.FrameOverlayView
+import com.scanner.views.BarcodeFrameOverlayView
+import java.util.concurrent.ConcurrentHashMap
 
 class ScannerView : FrameLayout {
   private var cameraProvider: ProcessCameraProvider? = null
@@ -36,6 +38,7 @@ class ScannerView : FrameLayout {
   private var barcodeScanner = BarcodeScanning.getClient()
   private var previewView: PreviewView? = null
   private var overlayView: FrameOverlayView? = null
+  private var barcodeFrameOverlayView: BarcodeFrameOverlayView? = null
 
   // Frame configuration
   private var enableFrame: Boolean = false
@@ -50,7 +53,9 @@ class ScannerView : FrameLayout {
   private var torchEnabled: Boolean = false
   private var isScanningPaused: Boolean = false
 
-  // Focus metering listener for cleanup
+  // Barcode frame tracking
+  private val activeBarcodeFrames = ConcurrentHashMap<String, BarcodeFrame>()
+  private val frameCleanupExecutor = Executors.newSingleThreadScheduledExecutor()
 
   constructor(context: Context) : super(context) {
     initScannerView(context)
@@ -90,6 +95,18 @@ class ScannerView : FrameLayout {
       )
     }
     addView(overlayView)
+
+    // Create overlay view for barcode frame drawing
+    barcodeFrameOverlayView = BarcodeFrameOverlayView(context).apply {
+      layoutParams = LayoutParams(
+        LayoutParams.MATCH_PARENT,
+        LayoutParams.MATCH_PARENT
+      )
+    }
+    addView(barcodeFrameOverlayView)
+
+    // Start frame cleanup scheduler
+    startFrameCleanupScheduler()
   }
 
   private fun installHierarchyFitter(view: ViewGroup) {
@@ -116,6 +133,7 @@ class ScannerView : FrameLayout {
   override fun onDetachedFromWindow() {
     super.onDetachedFromWindow()
     stopCamera()
+    frameCleanupExecutor.shutdown()
   }
 
   private fun startCamera() {
@@ -260,35 +278,38 @@ private fun processImage(imageProxy: ImageProxy) {
 
     barcodeScanner.process(image)
       .addOnSuccessListener { barcodes ->
-            if (barcodes.isNotEmpty()) {
-              val barcode = barcodes[0]
-              val frame = overlayView?.frameRect
-              val barcodeBox = barcode.boundingBox
+        // Update barcode frames for all detected barcodes
+        updateBarcodeFrames(barcodes, transformationInfo)
+        
+        // Process barcode detection for the main scanning logic
+        if (barcodes.isNotEmpty()) {
+          val barcode = barcodes[0]
+          val frame = overlayView?.frameRect
+          val barcodeBox = barcode.boundingBox
 
-              if (frame != null && barcodeBox != null && !isScanningPaused) {
-                val transformedBarcodeBox = transformBarcodeBoundingBox(barcodeBox, transformationInfo, previewView!!)
-                if (frame.contains(transformedBarcodeBox)) {
-                  Log.d("ScannerView", "Barcode detected inside frame: ${barcode.rawValue}")
+          if (frame != null && barcodeBox != null && !isScanningPaused) {
+            val transformedBarcodeBox = transformBarcodeBoundingBox(barcodeBox, transformationInfo, previewView!!)
+            if (frame.contains(transformedBarcodeBox)) {
+              Log.d("ScannerView", "Barcode detected inside frame: ${barcode.rawValue}")
 
+              val eventData = Arguments.createMap().apply {
+                putString("data", barcode.rawValue)
+                putString("format", barcode.format.toString())
+                putDouble("timestamp", System.currentTimeMillis().toDouble())
+              }
 
-                  val eventData = Arguments.createMap().apply {
-                    putString("data", barcode.rawValue)
-                    putString("format", barcode.format.toString())
-                    putDouble("timestamp", System.currentTimeMillis().toDouble())
-                  }
-
-                  val ctx = reactContext
-                  if (ctx is com.facebook.react.uimanager.ThemedReactContext) {
-                    ctx.runOnUiQueueThread {
-                      ctx
-                        .getJSModule(com.facebook.react.uimanager.events.RCTEventEmitter::class.java)
-                        .receiveEvent(this@ScannerView.id, "onBarcodeScanned", eventData)
-                    }
-                  }
-                } else {
-                    Log.d("ScannerView", "Barcode detected outside frame. Ignoring. Frame: $frame, Barcode box (transformed): $transformedBarcodeBox")
+              val ctx = reactContext
+              if (ctx is com.facebook.react.uimanager.ThemedReactContext) {
+                ctx.runOnUiQueueThread {
+                  ctx
+                    .getJSModule(com.facebook.react.uimanager.events.RCTEventEmitter::class.java)
+                    .receiveEvent(this@ScannerView.id, "onBarcodeScanned", eventData)
                 }
               }
+            } else {
+                Log.d("ScannerView", "Barcode detected outside frame. Ignoring. Frame: $frame, Barcode box (transformed): $transformedBarcodeBox")
+            }
+          }
         }
       }
       .addOnFailureListener { e ->
@@ -368,6 +389,69 @@ private fun processImage(imageProxy: ImageProxy) {
   private fun hasCameraPermission(): Boolean {
     return context.checkSelfPermission(android.Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED
   }
+
+  private fun startFrameCleanupScheduler() {
+    frameCleanupExecutor.scheduleAtFixedRate({
+      val currentTime = System.currentTimeMillis()
+      val framesToRemove = mutableListOf<String>()
+      
+      activeBarcodeFrames.forEach { (barcodeValue, frame) ->
+        if (currentTime - frame.lastSeenTime > 1000) { // 1 second timeout
+          framesToRemove.add(barcodeValue)
+        }
+      }
+      
+      if (framesToRemove.isNotEmpty()) {
+        framesToRemove.forEach { barcodeValue ->
+          activeBarcodeFrames.remove(barcodeValue)
+        }
+        updateBarcodeFramesDisplay()
+        Log.d("ScannerView", "Removed ${framesToRemove.size} stale barcode frames")
+      }
+    }, 100, 100, java.util.concurrent.TimeUnit.MILLISECONDS)
+  }
+
+  private fun updateBarcodeFramesDisplay() {
+    val currentFrames = activeBarcodeFrames.values.map { it.rect }.toList()
+    barcodeFrameOverlayView?.setBarcodeBoxes(currentFrames)
+  }
+
+  private fun updateBarcodeFrames(barcodes: List<Barcode>, transformationInfo: ImageAnalysisTransformationInfo) {
+    val currentTime = System.currentTimeMillis()
+    val currentBarcodeValues = mutableSetOf<String>()
+    
+    barcodes.forEach { barcode ->
+      val barcodeValue = barcode.rawValue ?: return@forEach
+      currentBarcodeValues.add(barcodeValue)
+      
+      val boundingBox = barcode.boundingBox ?: return@forEach
+      val transformedRect = transformBarcodeBoundingBox(
+        boundingBox,
+        transformationInfo,
+        previewView!!
+      )
+      
+      // Update existing frame or create new one
+      activeBarcodeFrames[barcodeValue] = BarcodeFrame(
+        rect = transformedRect,
+        lastSeenTime = currentTime
+      )
+    }
+    
+    // Remove frames for barcodes no longer visible
+    val framesToRemove = activeBarcodeFrames.keys.filter { it !in currentBarcodeValues }
+    framesToRemove.forEach { barcodeValue ->
+      activeBarcodeFrames.remove(barcodeValue)
+    }
+    
+    // Update display
+    updateBarcodeFramesDisplay()
+  }
+
+  private data class BarcodeFrame(
+    val rect: RectF,
+    val lastSeenTime: Long
+  )
 }
 
 private data class ImageAnalysisTransformationInfo(
