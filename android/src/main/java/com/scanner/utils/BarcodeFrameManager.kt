@@ -12,6 +12,11 @@ import java.util.concurrent.TimeUnit
  * Only schedules cleanup when there are active frames to monitor.
  */
 class BarcodeFrameManager {
+  companion object {
+    private const val FRAME_TIMEOUT_MS = 1000L // 1 second timeout
+    private const val CLEANUP_DELAY_MS = 1000L // 1 second delay before cleanup
+    const val TAG = "BarcodeFrameManager"
+  }
 
   // Thread-safe map to store active barcode frames
   private val activeBarcodeFrames = ConcurrentHashMap<String, BarcodeFrame>()
@@ -162,9 +167,4 @@ class BarcodeFrameManager {
     Log.d(TAG, "BarcodeFrameManager shutdown complete")
   }
 
-  companion object {
-    private const val FRAME_TIMEOUT_MS = 1000L // 1 second timeout
-    private const val CLEANUP_DELAY_MS = 1000L // 1 second delay before cleanup
-    const val TAG = "BarcodeFrameManager"
-  }
 }

@@ -26,9 +26,14 @@ import java.util.concurrent.Executors
 import com.scanner.utils.BarcodeFrameManager
 import com.scanner.views.FrameOverlayView
 import com.scanner.views.BarcodeFrameOverlayView
+import androidx.core.graphics.toColorInt
+import com.facebook.react.uimanager.events.RCTEventEmitter
 
 class ScannerView : FrameLayout {
-  private var TAG: String = "ScannerView"
+  companion object {
+    const val TAG = "ScannerView"
+  }
+
   private var cameraProvider: ProcessCameraProvider? = null
   private var camera: androidx.camera.core.Camera? = null
   private var imageAnalyzer: ImageAnalysis? = null
@@ -38,9 +43,6 @@ class ScannerView : FrameLayout {
   private var previewView: PreviewView? = null
   private var overlayView: FrameOverlayView? = null
   private var barcodeFrameOverlayView: BarcodeFrameOverlayView? = null
-
-  @Volatile
-  private var coordinateTransform: Matrix? = null
 
   // Frame configuration
   private var enableFrame: Boolean = false
@@ -125,12 +127,12 @@ class ScannerView : FrameLayout {
 
   private fun installHierarchyFitter(view: ViewGroup) {
     if (context is ThemedReactContext) { // only react-native setup
-      view.setOnHierarchyChangeListener(object : ViewGroup.OnHierarchyChangeListener {
+      view.setOnHierarchyChangeListener(object : OnHierarchyChangeListener {
         override fun onChildViewRemoved(parent: View?, child: View?) = Unit
         override fun onChildViewAdded(parent: View?, child: View?) {
           parent?.measure(
-            View.MeasureSpec.makeMeasureSpec(measuredWidth, View.MeasureSpec.EXACTLY),
-            View.MeasureSpec.makeMeasureSpec(measuredHeight, View.MeasureSpec.EXACTLY)
+            MeasureSpec.makeMeasureSpec(measuredWidth, MeasureSpec.EXACTLY),
+            MeasureSpec.makeMeasureSpec(measuredHeight, MeasureSpec.EXACTLY)
           )
           parent?.layout(0, 0, parent.measuredWidth, parent.measuredHeight)
         }
@@ -342,10 +344,10 @@ class ScannerView : FrameLayout {
                   }
 
                   val ctx = reactContext
-                  if (ctx is com.facebook.react.uimanager.ThemedReactContext) {
+                  if (ctx is ThemedReactContext) {
                     ctx.runOnUiQueueThread {
                       ctx
-                        .getJSModule(com.facebook.react.uimanager.events.RCTEventEmitter::class.java)
+                        .getJSModule(RCTEventEmitter::class.java)
                         .receiveEvent(this@ScannerView.id, "onBarcodeScanned", eventData)
                     }
                   }
@@ -386,7 +388,7 @@ class ScannerView : FrameLayout {
 
   fun setFrameColor(color: String) {
     try {
-      frameColor = Color.parseColor(color)
+      frameColor = color.toColorInt()
       overlayView?.setFrameColor(frameColor)
     } catch (e: Exception) {
       Log.e(TAG, "Invalid color format: $color")
