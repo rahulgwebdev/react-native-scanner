@@ -6,6 +6,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import HomeScreen from './pages/HomeScreen';
 import FullScreenExample from './pages/FullScreenExample';
 import RectangularFrameExample from './pages/RectangularFrameExample';
+import BarcodeFrameExample from './pages/BarcodeFrameExample';
 import CameraInfoExample from './pages/CameraInfoExample';
 
 // Import types
@@ -37,6 +38,15 @@ export default function App() {
             component={RectangularFrameExample}
             options={{
               title: 'Rectangular Frame Example',
+              headerShown: false,
+              gestureEnabled: true,
+            }}
+          />
+          <Stack.Screen
+            name="BarcodeFrameExample"
+            component={BarcodeFrameExample}
+            options={{
+              title: 'Barcode Frame Example',
               headerShown: false,
               gestureEnabled: true,
             }}

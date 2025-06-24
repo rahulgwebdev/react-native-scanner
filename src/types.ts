@@ -98,6 +98,7 @@ export type CameraNativeModuleViewProps = {
   enableFrame?: boolean;
   frameColor?: string;
   frameSize?: FrameSize;
+  showBarcodeFramesOnlyInFrame?: boolean;
   throttleMs?: number;
 
   // Torch control

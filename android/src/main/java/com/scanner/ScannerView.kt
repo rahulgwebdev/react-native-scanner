@@ -49,6 +49,7 @@ class ScannerView : FrameLayout {
   private var frameColor: Int = Color.WHITE
   private var frameSize: FrameSize = FrameSize.Square(300)
   private var barcodeFrameConfigs: List<BarcodeFrameConfig> = emptyList()
+  private var showBarcodeFramesOnlyInFrame: Boolean = false
 
   // React context for event emission
   private var reactContext: ThemedReactContext? = null
@@ -405,6 +406,11 @@ class ScannerView : FrameLayout {
     overlayView?.setBarcodeFrameConfigs(configs)
   }
 
+  fun setShowBarcodeFramesOnlyInFrame(showOnlyInFrame: Boolean) {
+    showBarcodeFramesOnlyInFrame = showOnlyInFrame
+    Log.d(TAG, "Show barcode frames only in frame: $showOnlyInFrame")
+  }
+
   fun setZoom(zoom: Float) {
     this.zoom = zoom
     // Apply zoom, respecting the device's limits
@@ -460,7 +466,16 @@ class ScannerView : FrameLayout {
         previewView!!
       )
 
-      barcodeFrames[barcodeValue] = transformedRect
+      // If showBarcodeFramesOnlyInFrame is true, only include frames within the overlay frame
+      if (showBarcodeFramesOnlyInFrame && enableFrame) {
+        val frame = overlayView?.frameRect
+        if (frame != null && frame.contains(transformedRect)) {
+          barcodeFrames[barcodeValue] = transformedRect
+        }
+      } else {
+        // Show all barcode frames
+        barcodeFrames[barcodeValue] = transformedRect
+      }
     }
 
     // Update frames using the manager

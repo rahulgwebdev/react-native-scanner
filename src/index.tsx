@@ -13,6 +13,9 @@ export { BarcodeFormat } from './types';
 export type {
   FrameSize,
   BarcodeFrameConfig,
+  BarcodeScannedEventPayload,
+  ScannerErrorEventPayload,
+  OnLoadEventPayload,
   DeviceCameraInfo,
   CurrentCameraInfo,
   CameraInfo,
@@ -29,6 +32,7 @@ const ScannerViewNativeComponent = requireNativeComponent<{
   enableFrame?: boolean;
   frameColor?: string;
   frameSize?: FrameSize;
+  showBarcodeFramesOnlyInFrame?: boolean;
   torch?: boolean;
   zoom?: number;
   pauseScanning?: boolean;
@@ -48,6 +52,7 @@ export interface ScannerViewProps extends ViewProps {
   enableFrame?: boolean;
   frameColor?: string;
   frameSize?: FrameSize;
+  showBarcodeFramesOnlyInFrame?: boolean;
 
   // Camera configuration
   torch?: boolean;

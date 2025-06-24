@@ -4,6 +4,7 @@ export type RootStackParamList = {
   Home: undefined;
   FullScreenExample: undefined;
   RectangularFrameExample: undefined;
+  BarcodeFrameExample: undefined;
   CameraInfoExample: undefined;
 };
 

@@ -129,6 +129,7 @@ export default function AdvancedScanner() {
 | `barcodeTypes` | `BarcodeFormat[]` | `[BarcodeFormat.QR_CODE]` | Array of barcode formats to scan |
 | `enableFrame` | `boolean` | `false` | Enable 200x200 frame overlay |
 | `frameColor` | `string` | `'#FFFFFF'` | Color of the frame border |
+| `showBarcodeFramesOnlyInFrame` | `boolean` | `false` | Show barcode detection frames only within the frame overlay |
 | `torch` | `boolean` | `false` | Enable/disable torch/flashlight |
 | `onBarcodeScanned` | `function` | - | Callback when barcode is scanned |
 | `onScannerError` | `function` | - | Callback when scanner encounters an error |
@@ -192,6 +193,23 @@ When `enableFrame` is set to `true`, the scanner displays a 200x200 pixel frame 
 
 - **With Frame**: Only scans within the 200x200 frame area
 - **Without Frame**: Scans the entire camera view
+
+## Barcode Frame Visualization
+
+The scanner can display visual frames around detected barcodes to help users see what's being scanned:
+
+- **Default behavior**: Shows yellow frames around all detected barcodes
+- **With `showBarcodeFramesOnlyInFrame={true}`**: Only shows frames for barcodes within the frame overlay
+- **Requires `enableFrame={true}`**: The frame overlay must be enabled for this feature to work
+
+```tsx
+<ScannerView
+  enableFrame={true}
+  showBarcodeFramesOnlyInFrame={true}
+  frameColor="#00FF00"
+  // ... other props
+/>
+```
 
 ## Torch Control
 

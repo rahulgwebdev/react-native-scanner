@@ -86,7 +86,7 @@ class ScannerViewManager : SimpleViewManager<ScannerView>() {
           val frameSizeMap = frameSize.asMap()
           val width = frameSizeMap.getInt("width")
           val height = frameSizeMap.getInt("height")
-          FrameSize.Rectangle(width, height)
+        FrameSize.Rectangle(width, height)
         }
         else -> FrameSize.Square(350) // Default
       }
@@ -144,6 +144,12 @@ class ScannerViewManager : SimpleViewManager<ScannerView>() {
     } else {
       view?.resumeScanning()
     }
+  }
+
+  @ReactProp(name = "showBarcodeFramesOnlyInFrame")
+  fun setShowBarcodeFramesOnlyInFrame(view: ScannerView?, showOnlyInFrame: Boolean?) {
+    view?.setShowBarcodeFramesOnlyInFrame(showOnlyInFrame ?: false)
+    Log.d("ScannerViewManager", "Show barcode frames only in frame: $showOnlyInFrame")
   }
 
   companion object {
