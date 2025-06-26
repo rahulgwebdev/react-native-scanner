@@ -40,14 +40,27 @@ export type FocusAreaConfig = {
   size?: FrameSize;
   /**
    * Color of the focus area border
-   * @default '#000000'
+   * @default transparent (no border) when not provided
    */
-  color?: string;
+  borderColor?: string;
+  /**
+   * Color of the semi-transparent overlay (tint) around the focus area
+   * @default '#000000' with 50% opacity when not provided
+   */
+  tintColor?: string;
   /**
    * Whether to draw the focus area overlay
    * @default false
    */
   showOverlay?: boolean;
+  /**
+   * Position of the focus area (percentage from 0-100)
+   * @default center (50, 50) when not provided
+   */
+  position?: {
+    x: number;
+    y: number;
+  };
 };
 
 // Barcode frame configuration
@@ -142,6 +155,7 @@ export type CameraNativeModuleViewProps = {
   torch?: boolean;
   zoom?: number;
   pauseScanning?: boolean;
+  keepScreenOn?: boolean;
 
   // Event handlers
   onBarcodeScanned?: (event: {

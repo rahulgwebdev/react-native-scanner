@@ -15,10 +15,8 @@ import ScannerView, {
   type BarcodeScannedEventPayload,
 } from 'react-native-scanner';
 import { check, request, PERMISSIONS, RESULTS } from 'react-native-permissions';
-import {
-  SafeAreaProvider,
-  useSafeAreaInsets,
-} from 'react-native-safe-area-context';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { useReliableInsets } from '../hooks';
 
 export default function BarcodeFrameExample() {
   const [torchEnabled, setTorchEnabled] = useState(false);
@@ -44,7 +42,7 @@ export default function BarcodeFrameExample() {
     onlyInFocusArea: false, // Show frames for all barcodes, not just in focus area
   });
 
-  const insets = useSafeAreaInsets();
+  const insets = useReliableInsets();
 
   useEffect(() => {
     const checkPermission = async () => {
@@ -198,6 +196,7 @@ export default function BarcodeFrameExample() {
         </View>
 
         <ScrollView
+          contentContainerStyle={{ paddingBottom: insets.bottom }}
           style={styles.controlsContainer}
           showsVerticalScrollIndicator={false}
         >

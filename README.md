@@ -140,6 +140,7 @@ export default function FocusAreaScanner() {
 | `zoom` | `number` | `1.0` | Camera zoom level |
 | `pauseScanning` | `boolean` | `false` | Pause/resume scanning |
 | `barcodeScanStrategy` | `BarcodeScanStrategy` | `BarcodeScanStrategy.ALL` | Strategy for processing multiple detected barcodes |
+| `keepScreenOn` | `boolean` | `true` | Keep screen on while camera is active (prevents auto-lock) |
 | `onBarcodeScanned` | `function` | - | Callback when barcode is scanned |
 | `onScannerError` | `function` | - | Callback when scanner encounters an error |
 | `onLoad` | `function` | - | Callback when scanner is loaded |
@@ -397,6 +398,46 @@ const [torchEnabled, setTorchEnabled] = useState(false);
   // ... other props
 />
 ```
+
+## Keep Screen On
+
+The scanner automatically keeps the screen on while the camera is active to prevent auto-lock during scanning sessions. This behavior can be controlled via the `keepScreenOn` prop:
+
+### Default Behavior (Screen Stays On)
+
+```tsx
+<ScannerView
+  keepScreenOn={true} // Default behavior
+  onBarcodeScanned={handleBarcodeScanned}
+/>
+```
+
+### Allow Screen Auto-Lock
+
+```tsx
+<ScannerView
+  keepScreenOn={false} // Allow screen to auto-lock
+  onBarcodeScanned={handleBarcodeScanned}
+/>
+```
+
+### Dynamic Control
+
+```tsx
+const [keepScreenOn, setKeepScreenOn] = useState(true);
+
+<ScannerView
+  keepScreenOn={keepScreenOn}
+  onBarcodeScanned={handleBarcodeScanned}
+/>
+
+// Toggle button
+<TouchableOpacity onPress={() => setKeepScreenOn(!keepScreenOn)}>
+  <Text>{keepScreenOn ? 'Disable Keep Screen On' : 'Enable Keep Screen On'}</Text>
+</TouchableOpacity>
+```
+
+**Note**: The screen is kept on by default (`keepScreenOn={true}`) as this is typically desired for scanning applications. When disabled, the screen may auto-lock, which could interrupt scanning sessions.
 
 ## Permissions
 

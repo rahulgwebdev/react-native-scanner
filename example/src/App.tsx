@@ -13,10 +13,12 @@ import BarcodeScanStrategyExample from './pages/BarcodeScanStrategyExample';
 
 // Import types
 import type { RootStackParamList } from './types/navigation';
+import { useNavigationBarControl } from './hooks';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export default function App() {
+  useNavigationBarControl(true);
   return (
     <SafeAreaProvider>
       <NavigationContainer>

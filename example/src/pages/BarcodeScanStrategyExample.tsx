@@ -110,7 +110,7 @@ const BarcodeScanStrategyExample: React.FC = () => {
                 enabled: true,
                 showOverlay: true,
                 size: 300,
-                color: '#00FF00',
+                borderColor: '#00FF00',
               }}
               barcodeFrames={{
                 enabled: true,

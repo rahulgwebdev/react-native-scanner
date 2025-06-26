@@ -21,11 +21,9 @@ import {
   RESULTS,
   openSettings,
 } from 'react-native-permissions';
-import {
-  SafeAreaProvider,
-  useSafeAreaInsets,
-} from 'react-native-safe-area-context';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import SystemNavigationBar from 'react-native-system-navigation-bar';
+import { useReliableInsets } from '../hooks';
 
 // Custom hook to manage navigation bar behavior
 const useNavigationBarControl = (immersive: boolean) => {
@@ -50,50 +48,21 @@ const useNavigationBarControl = (immersive: boolean) => {
   return immersive;
 };
 
-// Custom hook to get reliable insets for Android 10
-const useReliableInsets = (immersive: boolean = false) => {
-  const insets = useSafeAreaInsets();
-
-  // Fallback for Android 10 where insets might be zero
-  if (Platform.OS === 'android') {
-    const topInset = insets.top > 0 ? insets.top : StatusBar.currentHeight || 0;
-
-    // For bottom inset, try to calculate navigation bar height
-    let bottomInset = insets.bottom;
-    if (bottomInset === 0) {
-      // In Android 10, if we're in immersive mode, bottom inset should be 0
-      // If not in immersive mode, estimate navigation bar height
-      if (!immersive) {
-        // We'll use a conservative estimate of 48dp (typical navigation bar height)
-        // You can adjust this value based on your testing
-        bottomInset = 48;
-      }
-      // If immersive is true, keep bottomInset as 0
-    }
-
-    return {
-      top: topInset,
-      bottom: bottomInset,
-      left: insets.left,
-      right: insets.right,
-    };
-  }
-
-  return insets;
-};
-
 function FullScreenExample() {
   const [torchEnabled, setTorchEnabled] = useState(false);
   const [focusAreaConfig, setFocusAreaConfig] = useState({
     enabled: false, // Only scan in focus area
     showOverlay: true, // Show focus area overlay
     size: 300, // Size of focus area
-    color: '#00FF00', // Color of focus area border
+    borderColor: '#00FF00', // Color of focus area border
+    tintColor: '#000000', // Color of semi-transparent overlay
+    position: { x: 50, y: 50 }, // Center position (50%, 50%)
   });
   const [zoom, setZoom] = useState(1);
   const [immersive, setImmersive] = useState(true); // Default to immersive mode
   const [extendToGestureArea, setExtendToGestureArea] = useState(true); // Extend UI to gesture area
   const [pauseScanning, setPauseScanning] = useState(false); // Control scanning pause
+  const [keepScreenOn, setKeepScreenOn] = useState(true); // Control screen keep-awake
   const [permission, setPermission] = useState<
     'granted' | 'denied' | 'blocked' | 'unavailable' | 'limited' | 'loading'
   >('loading');
@@ -196,7 +165,35 @@ function FullScreenExample() {
   const changeFocusAreaColor = () => {
     setFocusAreaConfig((prev) => ({
       ...prev,
-      color: prev.color === '#00FF00' ? '#FF0000' : '#00FF00',
+      borderColor: prev.borderColor === '#00FF00' ? '#FF0000' : '#00FF00',
+    }));
+  };
+
+  const changeTintColor = () => {
+    setFocusAreaConfig((prev) => ({
+      ...prev,
+      tintColor:
+        prev.tintColor === '#000000'
+          ? '#FF0000'
+          : prev.tintColor === '#FF0000'
+            ? '#0000FF'
+            : '#000000',
+    }));
+  };
+
+  const changePosition = () => {
+    setFocusAreaConfig((prev) => ({
+      ...prev,
+      position:
+        prev.position.x === 50 && prev.position.y === 50
+          ? { x: 25, y: 25 } // Top-left
+          : prev.position.x === 25 && prev.position.y === 25
+            ? { x: 75, y: 25 } // Top-right
+            : prev.position.x === 75 && prev.position.y === 25
+              ? { x: 75, y: 75 } // Bottom-right
+              : prev.position.x === 75 && prev.position.y === 75
+                ? { x: 25, y: 75 } // Bottom-left
+                : { x: 50, y: 50 }, // Back to center
     }));
   };
 
@@ -217,6 +214,10 @@ function FullScreenExample() {
 
   const toggleExtendToGestureArea = () => {
     setExtendToGestureArea(!extendToGestureArea);
+  };
+
+  const toggleKeepScreenOn = () => {
+    setKeepScreenOn(!keepScreenOn);
   };
 
   if (permission === 'loading') {
@@ -281,6 +282,7 @@ function FullScreenExample() {
           onLoad={handleLoad}
           pauseScanning={pauseScanning}
           barcodeScanStrategy={BarcodeScanStrategy.ONE}
+          keepScreenOn={keepScreenOn}
         />
       </View>
 
@@ -307,6 +309,27 @@ function FullScreenExample() {
           >
             <Text style={styles.buttonText}>🎨 Color</Text>
           </TouchableOpacity>
+          <TouchableOpacity style={styles.button} onPress={changeTintColor}>
+            <Text style={styles.buttonText}>🎨 Tint</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.button}
+            onPress={() => {
+              setFocusAreaConfig((prev) => ({
+                ...prev,
+                borderColor:
+                  prev.borderColor === 'transparent'
+                    ? '#00FF00'
+                    : 'transparent',
+              }));
+            }}
+          >
+            <Text style={styles.buttonText}>
+              {focusAreaConfig.borderColor === 'transparent'
+                ? '🎨 Show Border'
+                : '🎨 Hide Border'}
+            </Text>
+          </TouchableOpacity>
           <TouchableOpacity style={styles.button} onPress={changeFocusAreaSize}>
             <Text style={styles.buttonText}>📏 {focusAreaConfig.size}px</Text>
           </TouchableOpacity>
@@ -328,6 +351,14 @@ function FullScreenExample() {
                 : '🖥️ Normal Mode'}
             </Text>
           </TouchableOpacity>
+          <TouchableOpacity style={styles.button} onPress={toggleKeepScreenOn}>
+            <Text style={styles.buttonText}>
+              {keepScreenOn ? '🖥️ Keep Screen On' : '🖥️ Keep Screen Off'}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.button} onPress={changePosition}>
+            <Text style={styles.buttonText}>🔄 Change Position</Text>
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -344,7 +375,11 @@ function FullScreenExample() {
           Frame: {focusAreaConfig.enabled ? 'ON' : 'OFF'} | Torch:{' '}
           {torchEnabled ? 'ON' : 'OFF'} | Zoom: {zoom.toFixed(1)}x | Mode:{' '}
           {immersive ? 'Immersive' : 'Fixed Nav Buttons'} | Gesture:{' '}
-          {extendToGestureArea ? 'Extended' : 'Respected'}
+          {extendToGestureArea ? 'Extended' : 'Respected'} | Border:{' '}
+          {focusAreaConfig.borderColor === 'transparent' ? 'Hidden' : 'Visible'}{' '}
+          | Tint: {focusAreaConfig.tintColor} | Pos: (
+          {focusAreaConfig.position.x},{focusAreaConfig.position.y}) | Screen:{' '}
+          {keepScreenOn ? 'Keep On' : 'Auto Lock'}
         </Text>
       </View>
     </View>

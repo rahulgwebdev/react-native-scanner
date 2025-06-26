@@ -40,15 +40,27 @@ class ScannerViewManager : SimpleViewManager<ScannerView>() {
     if (focusArea != null) {
       val enabled = focusArea.getBoolean("enabled") ?: false
       val showOverlay = focusArea.getBoolean("showOverlay") ?: false
-      val color = focusArea.getString("color")
+      val borderColor = focusArea.getString("borderColor")
+      val tintColor = focusArea.getString("tintColor")
       val size = focusArea.getDynamic("size")
+      val position = focusArea.getMap("position")
       
       // Set focus area properties
       view?.setFocusAreaEnabled(enabled)
       view?.setEnableFrame(showOverlay)
       
-      if (color != null) {
-        view?.setFrameColor(color)
+      if (borderColor != null) {
+        view?.setBorderColor(borderColor)
+      }
+      
+      if (tintColor != null) {
+        view?.setTintColor(tintColor)
+      }
+      
+      if (position != null) {
+        val x = position.getDouble("x").toFloat()
+        val y = position.getDouble("y").toFloat()
+        view?.setPosition(x, y)
       }
       
       if (size != null) {
@@ -65,7 +77,7 @@ class ScannerViewManager : SimpleViewManager<ScannerView>() {
         view?.setFrameSize(frameSize)
       }
       
-      Log.d("ScannerViewManager", "Focus area configured: enabled=$enabled, showOverlay=$showOverlay, color=$color")
+      Log.d("ScannerViewManager", "Focus area configured: enabled=$enabled, showOverlay=$showOverlay, borderColor=$borderColor, tintColor=$tintColor, position=$position")
     }
   }
 
@@ -132,6 +144,11 @@ class ScannerViewManager : SimpleViewManager<ScannerView>() {
   @ReactProp(name = "barcodeScanStrategy")
   fun setBarcodeScanStrategy(view: ScannerView?, strategy: String?) {
     view?.setBarcodeScanStrategy(strategy ?: "ALL")
+  }
+
+  @ReactProp(name = "keepScreenOn")
+  fun setKeepScreenOn(view: ScannerView?, keepOn: Boolean?) {
+    view?.setKeepScreenOnEnabled(keepOn ?: true)
   }
 
   companion object {

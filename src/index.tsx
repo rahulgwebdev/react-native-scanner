@@ -35,6 +35,7 @@ const ScannerViewNativeComponent = requireNativeComponent<{
   zoom?: number;
   pauseScanning?: boolean;
   barcodeScanStrategy?: BarcodeScanStrategy;
+  keepScreenOn?: boolean;
   onBarcodeScanned?: (event: {
     nativeEvent: { barcodes: BarcodeScannedEventPayload[] };
   }) => void;
@@ -90,6 +91,13 @@ export interface ScannerViewProps extends ViewProps {
    * @default BarcodeScanStrategy.ALL
    */
   barcodeScanStrategy?: BarcodeScanStrategy;
+
+  /**
+   * Controls whether the screen should stay on while the camera is active.
+   * When true, prevents the device from auto-locking the screen.
+   * @default true
+   */
+  keepScreenOn?: boolean;
 
   /**
    * Callback function triggered when a barcode is successfully scanned.

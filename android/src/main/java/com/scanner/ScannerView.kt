@@ -2,6 +2,7 @@ package com.scanner
 
 import android.content.Context
 import android.graphics.*
+import android.os.PowerManager
 import android.util.AttributeSet
 import android.util.Log
 import android.util.Rational
@@ -9,6 +10,7 @@ import android.util.Size
 import android.view.Surface
 import android.view.View
 import android.view.ViewGroup
+import android.view.WindowManager
 import android.widget.FrameLayout
 import androidx.annotation.OptIn
 import androidx.camera.core.*
@@ -24,7 +26,7 @@ import com.google.mlkit.vision.common.InputImage
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import com.scanner.utils.BarcodeFrameManager
-import com.scanner.views.FrameOverlayView
+import com.scanner.views.FocusAreaView
 import com.scanner.views.BarcodeFrameOverlayView
 import androidx.core.graphics.toColorInt
 import com.facebook.react.uimanager.events.RCTEventEmitter
@@ -41,13 +43,16 @@ class ScannerView : FrameLayout {
   private var cameraExecutor: ExecutorService = Executors.newSingleThreadExecutor()
   private var barcodeScanner = BarcodeScanning.getClient()
   private var previewView: PreviewView? = null
-  private var overlayView: FrameOverlayView? = null
+  private var overlayView: FocusAreaView? = null
   private var barcodeFrameOverlayView: BarcodeFrameOverlayView? = null
 
   // Frame configuration
   private var enableFrame: Boolean = false
-  private var frameColor: Int = Color.WHITE
+  private var borderColor: Int = Color.TRANSPARENT
+  private var tintColor: Int = Color.BLACK
   private var frameSize: FrameSize = FrameSize.Square(300)
+  private var positionX: Float = 50f // Default center (50%)
+  private var positionY: Float = 50f // Default center (50%)
   private var showBarcodeFramesOnlyInFrame: Boolean = false
 
   // Focus area and barcode frames configuration
@@ -67,6 +72,10 @@ class ScannerView : FrameLayout {
 
   // Barcode frame management
   private val barcodeFrameManager = BarcodeFrameManager()
+
+  // Wake lock and screen keep-awake
+  private var wakeLock: PowerManager.WakeLock? = null
+  private var keepScreenOn: Boolean = true
 
   constructor(context: Context) : super(context) {
     initScannerView(context)
@@ -89,6 +98,9 @@ class ScannerView : FrameLayout {
       reactContext = context
     }
 
+    // Initialize wake lock
+    initializeWakeLock()
+
     previewView = PreviewView(context).apply {
       layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
       scaleType = PreviewView.ScaleType.FILL_CENTER
@@ -99,7 +111,7 @@ class ScannerView : FrameLayout {
     addView(previewView)
 
     // Create overlay view for frame drawing
-    overlayView = FrameOverlayView(context).apply {
+    overlayView = FocusAreaView(context).apply {
       layoutParams = LayoutParams(
         LayoutParams.MATCH_PARENT,
         LayoutParams.MATCH_PARENT
@@ -128,6 +140,45 @@ class ScannerView : FrameLayout {
     }
   }
 
+  private fun initializeWakeLock() {
+    val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
+    wakeLock = powerManager.newWakeLock(
+      PowerManager.SCREEN_BRIGHT_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP,
+      "ScannerView::WakeLock"
+    )
+    wakeLock?.setReferenceCounted(false)
+  }
+
+  private fun acquireWakeLock() {
+    if (keepScreenOn && wakeLock?.isHeld == false) {
+      wakeLock?.acquire()
+      Log.d(TAG, "Wake lock acquired")
+    }
+  }
+
+  private fun releaseWakeLock() {
+    if (wakeLock?.isHeld == true) {
+      wakeLock?.release()
+      Log.d(TAG, "Wake lock released")
+    }
+  }
+
+  private fun updateKeepScreenOn(keepOn: Boolean) {
+    keepScreenOn = keepOn
+    if (keepOn) {
+      // Set FLAG_KEEP_SCREEN_ON on the activity window
+      val activity = reactContext?.currentActivity
+      activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+      acquireWakeLock()
+    } else {
+      // Remove FLAG_KEEP_SCREEN_ON from the activity window
+      val activity = reactContext?.currentActivity
+      activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+      releaseWakeLock()
+    }
+    Log.d(TAG, "Keep screen on: $keepOn")
+  }
+
   private fun installHierarchyFitter(view: ViewGroup) {
     if (context is ThemedReactContext) { // only react-native setup
       view.setOnHierarchyChangeListener(object : OnHierarchyChangeListener {
@@ -153,6 +204,9 @@ class ScannerView : FrameLayout {
     super.onDetachedFromWindow()
     stopCamera()
     barcodeFrameManager.shutdown()
+    
+    // Ensure wake lock is released when view is destroyed
+    releaseWakeLock()
   }
 
   private fun startCamera() {
@@ -162,6 +216,9 @@ class ScannerView : FrameLayout {
       Log.e(TAG, "Camera permission not granted")
       return
     }
+
+    // Acquire wake lock when camera starts
+    updateKeepScreenOn(true)
 
     val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
     cameraProviderFuture.addListener({
@@ -185,6 +242,9 @@ class ScannerView : FrameLayout {
     cameraProvider?.unbindAll()
     cameraExecutor.shutdown()
     barcodeScanner.close()
+
+    // Release wake lock when camera stops
+    updateKeepScreenOn(false)
 
     Log.e(TAG, "Camera stopped.")
   }
@@ -390,10 +450,19 @@ class ScannerView : FrameLayout {
     }
   }
 
-  fun setFrameColor(color: String) {
+  fun setBorderColor(color: String) {
     try {
-      frameColor = color.toColorInt()
-      overlayView?.setFrameColor(frameColor)
+      borderColor = color.toColorInt()
+      overlayView?.setBorderColor(borderColor)
+    } catch (e: Exception) {
+      Log.e(TAG, "Invalid color format: $color")
+    }
+  }
+
+  fun setTintColor(color: String) {
+    try {
+      tintColor = color.toColorInt()
+      overlayView?.setTintColor(tintColor)
     } catch (e: Exception) {
       Log.e(TAG, "Invalid color format: $color")
     }
@@ -464,6 +533,17 @@ class ScannerView : FrameLayout {
   fun setBarcodeScanStrategy(strategy: String) {
     barcodeScanStrategy = strategy
     Log.d(TAG, "Barcode scan strategy set to: $strategy")
+  }
+
+  fun setPosition(x: Float, y: Float) {
+    positionX = x.coerceIn(0f, 100f) // Clamp to 0-100 range
+    positionY = y.coerceIn(0f, 100f) // Clamp to 0-100 range
+    overlayView?.setPosition(positionX, positionY)
+    Log.d(TAG, "Focus area position set to: x=$positionX%, y=$positionY%")
+  }
+
+  fun setKeepScreenOnEnabled(keepOn: Boolean) {
+    updateKeepScreenOn(keepOn)
   }
 
   private fun hasCameraPermission(): Boolean {

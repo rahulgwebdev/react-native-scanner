@@ -8,21 +8,16 @@ import {
   Platform,
   ScrollView,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import {
-  SafeAreaProvider,
-  useSafeAreaInsets,
-} from 'react-native-safe-area-context';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import ScannerView, {
   BarcodeFormat,
   BarcodeScanStrategy,
   type BarcodeScannedEventPayload,
 } from 'react-native-scanner';
-import type { NavigationProp } from '../types/navigation';
 import { check, request, PERMISSIONS, RESULTS } from 'react-native-permissions';
+import { useReliableInsets } from '../hooks';
 
 export default function RectangularFrameExample() {
-  const navigation = useNavigation<NavigationProp>();
   const [torchEnabled, setTorchEnabled] = useState(false);
   const [zoom, setZoom] = useState(1);
   const [pauseScanning, setPauseScanning] = useState(false);
@@ -37,8 +32,6 @@ export default function RectangularFrameExample() {
     size: { width: 300, height: 200 }, // Rectangular focus area
     color: '#00FF00', // Color of focus area border
   });
-
-  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     const checkPermission = async () => {
@@ -137,6 +130,8 @@ export default function RectangularFrameExample() {
     setZoom(zoom === 1 ? 2 : zoom === 2 ? 3 : 1);
   };
 
+  const insets = useReliableInsets();
+
   if (permission === 'loading') {
     return <Text>Checking camera permission...</Text>;
   }
@@ -163,13 +158,7 @@ export default function RectangularFrameExample() {
   return (
     <SafeAreaProvider>
       <View style={[styles.container, { paddingTop: insets.top }]}>
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-          >
-            <Text style={styles.backButtonText}>← Back</Text>
-          </TouchableOpacity>
+        <View style={[styles.header, { top: insets.top }]}>
           <Text style={styles.title}>Rectangular Frame Example</Text>
           <Text style={styles.subtitle}>
             Demonstrates rectangular focus area configuration
@@ -233,7 +222,7 @@ export default function RectangularFrameExample() {
             </View>
           </View>
 
-          <View style={styles.controlSection}>
+          <View style={[styles.controlSection]}>
             <Text style={styles.sectionTitle}>Camera Controls</Text>
             <View style={styles.buttonRow}>
               <TouchableOpacity
@@ -268,9 +257,13 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#000',
+    position: 'relative',
   },
   header: {
-    flexDirection: 'row',
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
@@ -289,10 +282,9 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   title: {
-    fontSize: 24,
+    fontSize: 16,
     fontWeight: 'bold',
     color: '#fff',
-    flex: 1,
     textAlign: 'center',
   },
   subtitle: {

@@ -7,10 +7,13 @@ import android.view.View
 import com.scanner.FrameSize
 
 // Separate overlay view for frame drawing
-class FrameOverlayView : View {
+class FocusAreaView : View {
   private var enableFrame: Boolean = false
-  private var frameColor: Int = Color.WHITE
+  private var borderColor: Int = Color.TRANSPARENT
+  private var tintColor: Int = Color.BLACK
   private var frameSize: FrameSize = FrameSize.Square(300)
+  private var positionX: Float = 50f // Default center (50%)
+  private var positionY: Float = 50f // Default center (50%)
   var frameRect: RectF? = null
     private set
 
@@ -35,8 +38,9 @@ class FrameOverlayView : View {
   }
 
   private fun drawFrame(canvas: Canvas) {
-    val centerX = width / 2f
-    val centerY = height / 2f
+    // Calculate position based on percentage (0-100)
+    val centerX = (width * positionX / 100f)
+    val centerY = (height * positionY / 100f)
 
     // Calculate frame dimensions based on frameSize type
     val currentFrameSize = frameSize // Local copy to avoid smart cast issues
@@ -57,7 +61,7 @@ class FrameOverlayView : View {
     val frameHalfWidth = frameWidth / 2f
     val frameHalfHeight = frameHeight / 2f
 
-    // Calculate frame rectangle
+    // Calculate frame rectangle with custom position
     frameRect = RectF(
       centerX - frameHalfWidth,
       centerY - frameHalfHeight,
@@ -67,7 +71,7 @@ class FrameOverlayView : View {
 
     // Draw semi-transparent overlay
     val overlayPaint = Paint().apply {
-      color = Color.BLACK
+      color = tintColor
       alpha = 128
     }
 
@@ -81,13 +85,15 @@ class FrameOverlayView : View {
     }
     canvas.drawRect(frameRect!!, clearPaint)
 
-    // Draw frame border
-    val borderPaint = Paint().apply {
-      color = frameColor
-      style = Paint.Style.STROKE
-      strokeWidth = 4f
+    // Draw frame border only if color is not transparent
+    if (borderColor != Color.TRANSPARENT) {
+      val borderPaint = Paint().apply {
+        color = borderColor
+        style = Paint.Style.STROKE
+        strokeWidth = 4f
+      }
+      canvas.drawRect(frameRect!!, borderPaint)
     }
-    canvas.drawRect(frameRect!!, borderPaint)
   }
 
   fun setEnableFrame(enable: Boolean) {
@@ -95,13 +101,24 @@ class FrameOverlayView : View {
     invalidate()
   }
 
-  fun setFrameColor(color: Int) {
-    frameColor = color
+  fun setBorderColor(color: Int) {
+    borderColor = color
+    invalidate()
+  }
+
+  fun setTintColor(color: Int) {
+    tintColor = color
     invalidate()
   }
 
   fun setFrameSize(size: FrameSize) {
     frameSize = size
+    invalidate()
+  }
+
+  fun setPosition(x: Float, y: Float) {
+    positionX = x.coerceIn(0f, 100f) // Clamp to 0-100 range
+    positionY = y.coerceIn(0f, 100f) // Clamp to 0-100 range
     invalidate()
   }
 }
