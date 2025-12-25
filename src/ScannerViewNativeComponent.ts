@@ -46,6 +46,13 @@ export interface NativeProps extends ViewProps {
   barcodeScanStrategy?: string;
   keepScreenOn?: boolean;
 
+  /**
+   * Minimum interval (in seconds) between barcode emission events.
+   * Prevents rapid duplicate detections. Set to 0 to disable debouncing.
+   * @default 0.5
+   */
+  barcodeEmissionInterval?: Double;
+
   onBarcodeScanned?: BubblingEventHandler<{
     barcodes: {
       data: string;

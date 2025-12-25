@@ -53,6 +53,10 @@ class ScannerViewImpl: UIView {
     // Track visibility so we can stop the camera when this view isn't on-screen (no JS hooks needed)
     private var isViewVisible: Bool = false
     
+    // Debounce mechanism to prevent multiple rapid barcode detections
+    private var lastBarcodeEmissionTime: TimeInterval = 0
+    private var barcodeEmissionDebounceInterval: TimeInterval = 0.5 // Default 500ms debounce
+    
     // MARK: - Initialization
     
     @objc override init(frame: CGRect) {
@@ -176,8 +180,12 @@ class ScannerViewImpl: UIView {
         if value {
             barcodeDetectionManager.pauseScanning()
             frameManager.clearAllFrames()
+            // Reset debounce timer when pausing to prevent stale emissions
+            lastBarcodeEmissionTime = 0
         } else {
             barcodeDetectionManager.resumeScanning()
+            // Reset debounce timer when resuming to allow immediate detection
+            lastBarcodeEmissionTime = 0
         }
         print("[ScannerViewImpl] Scanning \(value ? "paused" : "resumed")")
     }
@@ -199,6 +207,14 @@ class ScannerViewImpl: UIView {
         keepScreenOn = value
         UIApplication.shared.isIdleTimerDisabled = value
         print("[ScannerViewImpl] Keep screen on: \(value)")
+    }
+    
+    /// Set barcode emission debounce interval
+    /// - Parameter interval: Minimum interval in seconds between barcode emissions (0 to disable)
+    @objc func setBarcodeEmissionInterval(_ interval: NSNumber) {
+        let value = interval.doubleValue
+        barcodeEmissionDebounceInterval = max(0.0, value) // Ensure non-negative
+        print("[ScannerViewImpl] Barcode emission interval set to: \(barcodeEmissionDebounceInterval)s")
     }
     
     // MARK: - Lifecycle Methods
@@ -426,8 +442,21 @@ class ScannerViewImpl: UIView {
     /// Emit barcodes detected event to React Native
     /// - Parameter results: Detected barcode results
     private func emitBarcodesDetected(_ results: [BarcodeDetectionResult]) {
+        // Debounce: Prevent rapid duplicate emissions
+        let currentTime = Date().timeIntervalSince1970
+        let timeSinceLastEmission = currentTime - lastBarcodeEmissionTime
+        
+        // If we've emitted recently (within debounce interval), skip this emission
+        // This prevents multiple alerts when pauseScanning is set but detection callbacks are still in flight
+        guard timeSinceLastEmission >= barcodeEmissionDebounceInterval else {
+            print("[ScannerViewImpl] ⏭️ Skipping barcode emission (debounced, last emission was \(timeSinceLastEmission)s ago)")
+            return
+        }
+        
+        lastBarcodeEmissionTime = currentTime
         let barcodesArray = results.map { $0.toDictionary() }
         delegate?.scannerDidDetectBarcodes(barcodesArray)
+        print("[ScannerViewImpl] ✅ Barcode emitted (debounced)")
     }
     
     /// Emit error event to React Native

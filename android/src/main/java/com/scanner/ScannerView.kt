@@ -16,6 +16,10 @@ import androidx.annotation.OptIn
 import androidx.camera.core.*
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
+import androidx.camera.camera2.interop.Camera2CameraControl
+import androidx.camera.camera2.interop.CaptureRequestOptions
+import android.hardware.camera2.CaptureRequest
+import kotlin.math.max
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
 import com.facebook.react.bridge.*
@@ -76,6 +80,10 @@ class ScannerView : FrameLayout {
   // Wake lock and screen keep-awake
   private var wakeLock: PowerManager.WakeLock? = null
   private var keepScreenOn: Boolean = true
+
+  // Debounce mechanism to prevent multiple rapid barcode detections
+  private var lastBarcodeEmissionTime: Long = 0
+  private var barcodeEmissionDebounceInterval: Long = 500 // Default 500ms debounce
 
   constructor(context: Context) : super(context) {
     initScannerView(context)
@@ -317,7 +325,10 @@ class ScannerView : FrameLayout {
       camera?.cameraControl?.enableTorch(torchEnabled)
       setZoom(zoom)
 
-      // Set up auto-focus on frame center
+      // Set up continuous autofocus for better barcode scanning
+      setupContinuousAutoFocus()
+
+      // Set up auto-focus on frame center (if focus area is enabled)
       setupAutoFocusOnFrame()
 
     } catch (exc: Exception) {
@@ -325,10 +336,50 @@ class ScannerView : FrameLayout {
     }
   }
 
-  private fun setupAutoFocusOnFrame() {
-    if (!enableFrame) return
+  /**
+   * Set up continuous autofocus mode for better barcode scanning.
+   * This enables AF_MODE_CONTINUOUS_PICTURE which continuously adjusts focus,
+   * making it much easier to scan barcodes at different distances.
+   */
+  private fun setupContinuousAutoFocus() {
+    try {
+      val camera2Control = camera?.cameraControl?.let { 
+        Camera2CameraControl.from(it) 
+      } ?: run {
+        Log.w(TAG, "Camera2CameraControl not available")
+        return
+      }
 
-    val frame = overlayView?.frameRect ?: return
+      // Enable continuous autofocus mode
+      camera2Control.captureRequestOptions = CaptureRequestOptions.Builder()
+        .setCaptureRequestOption<Int>(
+          CaptureRequest.CONTROL_AF_MODE,
+          CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE
+        )
+        .build()
+
+      Log.d(TAG, "✅ Continuous autofocus enabled (AF_MODE_CONTINUOUS_PICTURE)")
+    } catch (e: Exception) {
+      Log.e(TAG, "Failed to setup continuous autofocus", e)
+    }
+  }
+
+  /**
+   * Set up autofocus on the focus area frame center.
+   * This provides additional focus assistance when a focus area is defined.
+   */
+  private fun setupAutoFocusOnFrame() {
+    if (!enableFrame) {
+      // Even without focus area overlay, trigger autofocus on screen center
+      triggerAutoFocusOnCenter()
+      return
+    }
+
+    val frame = overlayView?.frameRect ?: run {
+      triggerAutoFocusOnCenter()
+      return
+    }
+    
     val centerX = frame.centerX()
     val centerY = frame.centerY()
 
@@ -338,16 +389,30 @@ class ScannerView : FrameLayout {
     val normalizedX = centerX / viewWidth
     val normalizedY = centerY / viewHeight
 
+    triggerAutoFocusAt(normalizedX, normalizedY)
+  }
+
+  /**
+   * Trigger autofocus at screen center (useful when no focus area is defined)
+   */
+  private fun triggerAutoFocusOnCenter() {
+    triggerAutoFocusAt(0.5f, 0.5f)
+  }
+
+  /**
+   * Trigger autofocus at a specific normalized point (0.0-1.0)
+   */
+  private fun triggerAutoFocusAt(normalizedX: Float, normalizedY: Float) {
     val meteringPointFactory = previewView?.meteringPointFactory ?: return
     val afPoint = meteringPointFactory.createPoint(normalizedX, normalizedY)
 
     val focusAction = FocusMeteringAction.Builder(afPoint, FocusMeteringAction.FLAG_AF)
-      .disableAutoCancel() // Optional: maintain focus
+      .setAutoCancelDuration(2, java.util.concurrent.TimeUnit.SECONDS) // Auto-cancel after 2 seconds
       .build()
 
     camera?.cameraControl?.startFocusAndMetering(focusAction)
       ?.addListener({
-        Log.d(TAG, "Auto-focus to frame center triggered")
+        Log.d(TAG, "Auto-focus triggered at ($normalizedX, $normalizedY)")
       }, ContextCompat.getMainExecutor(context))
   }
 
@@ -380,6 +445,17 @@ class ScannerView : FrameLayout {
 
               if (processedBarcodes.isNotEmpty()) {
                 val currentTime = System.currentTimeMillis()
+                val timeSinceLastEmission = currentTime - lastBarcodeEmissionTime
+
+                // Debounce: Prevent rapid duplicate emissions
+                // If we've emitted recently (within debounce interval), skip this emission
+                // This prevents multiple alerts when pauseScanning is set but detection callbacks are still in flight
+                if (timeSinceLastEmission < barcodeEmissionDebounceInterval) {
+                  Log.d(TAG, "⏭️ Skipping barcode emission (debounced, last emission was ${timeSinceLastEmission}ms ago)")
+                  return@addOnSuccessListener
+                }
+
+                lastBarcodeEmissionTime = currentTime
 
                 // Create array of barcode events
                 val barcodeEvents = Arguments.createArray()
@@ -415,6 +491,7 @@ class ScannerView : FrameLayout {
                     }
                     ctx.getJSModule(RCTEventEmitter::class.java)
                       .receiveEvent(this@ScannerView.id, "onBarcodeScanned", eventData)
+                    Log.d(TAG, "✅ Barcode emitted (debounced)")
                   }
                 }
               }
@@ -520,6 +597,8 @@ class ScannerView : FrameLayout {
 
   fun resumeScanning() {
     isScanningPaused = false
+    // Reset debounce timer when resuming to allow immediate detection
+    lastBarcodeEmissionTime = 0
     Log.d(TAG, "Scanning resumed")
   }
 
@@ -527,7 +606,15 @@ class ScannerView : FrameLayout {
     isScanningPaused = true
     // Clear all barcode frames when pausing
     barcodeFrameManager.clearAllFrames()
+    // Reset debounce timer when pausing to prevent stale emissions
+    lastBarcodeEmissionTime = 0
     Log.d(TAG, "Scanning paused")
+  }
+
+  fun setBarcodeEmissionInterval(intervalSeconds: Double) {
+    // Convert seconds to milliseconds, ensure non-negative
+    barcodeEmissionDebounceInterval = max(0, (intervalSeconds * 1000).toLong())
+    Log.d(TAG, "Barcode emission interval set to: ${barcodeEmissionDebounceInterval}ms")
   }
 
   fun setBarcodeScanStrategy(strategy: String) {

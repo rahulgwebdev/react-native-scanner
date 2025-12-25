@@ -151,6 +151,13 @@ class ScannerViewManager : SimpleViewManager<ScannerView>() {
     view?.setKeepScreenOnEnabled(keepOn ?: true)
   }
 
+  @ReactProp(name = "barcodeEmissionInterval")
+  fun setBarcodeEmissionInterval(view: ScannerView?, interval: Double) {
+    // Use 0.5 as default if interval is 0 or negative (React Native may pass 0 for undefined)
+    val actualInterval = if (interval > 0) interval else 0.5
+    view?.setBarcodeEmissionInterval(actualInterval)
+  }
+
   companion object {
     const val NAME = "ScannerView"
   }

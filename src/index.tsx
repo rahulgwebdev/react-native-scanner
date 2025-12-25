@@ -103,6 +103,14 @@ export interface ScannerViewProps extends ViewProps {
   keepScreenOn?: boolean;
 
   /**
+   * Minimum interval (in seconds) between barcode emission events.
+   * Prevents rapid duplicate detections when pauseScanning is set.
+   * Set to 0 to disable debouncing.
+   * @default 0.5
+   */
+  barcodeEmissionInterval?: number;
+
+  /**
    * Callback function triggered when a barcode is successfully scanned.
    * Provides the scanned barcode data and metadata.
    */
@@ -170,6 +178,8 @@ export default function ScannerView(props: ScannerViewProps) {
       : undefined,
 
     keepScreenOn: keepScreenOn,
+
+    barcodeEmissionInterval: props.barcodeEmissionInterval,
 
     onBarcodeScanned: onBarcodeScanned
       ? (event: any) => {
