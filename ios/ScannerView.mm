@@ -192,10 +192,15 @@ using namespace facebook::react;
         }
 
         // position: {x,y} in 0-100
-        [focusAreaDict setObject:@{
-            @"x": @(newViewProps.focusArea.position.x),
-            @"y": @(newViewProps.focusArea.position.y)
-        } forKey:@"position"];
+        // Android defaults to 50/50 when position isn't provided.
+        // Codegen initializes missing nested fields to 0.0, so we only forward position when non-zero.
+        // Note: this means explicitly setting {x:0,y:0} from JS is not representable with this heuristic.
+        if (newViewProps.focusArea.position.x != 0.0 || newViewProps.focusArea.position.y != 0.0) {
+            [focusAreaDict setObject:@{
+                @"x": @(newViewProps.focusArea.position.x),
+                @"y": @(newViewProps.focusArea.position.y)
+            } forKey:@"position"];
+        }
 
         if ([_scannerImpl respondsToSelector:@selector(configureFocusArea:)]) {
             [_scannerImpl performSelector:@selector(configureFocusArea:) withObject:focusAreaDict];

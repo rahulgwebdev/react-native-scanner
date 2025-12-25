@@ -23,17 +23,24 @@ class CoordinateTransformer: CoordinateTransformationProtocol {
     static func transformVisionRectToViewRect(_ visionRect: CGRect,
                                              viewSize: CGSize,
                                              previewLayer: AVCaptureVideoPreviewLayer?) -> CGRect {
+        // Best-effort: when we have a previewLayer, use Apple's conversion.
+        // Vision boundingBox is normalized (0-1) with origin at bottom-left.
+        // AVCapture metadata normalized rect expects origin at top-left.
+        if let layer = previewLayer {
+            let metadataRect = CGRect(
+                x: visionRect.minX,
+                y: 1.0 - visionRect.minY - visionRect.height,
+                width: visionRect.width,
+                height: visionRect.height
+            )
+            return layer.layerRectConverted(fromMetadataOutputRect: metadataRect)
+        }
+
+        // Fallback (no previewLayer): approximate in view coords.
         // Step 1: Denormalize from 0-1 to view size
         var rect = denormalizeRect(visionRect, toSize: viewSize)
-        
         // Step 2: Flip Y-axis (Vision uses bottom-left, UIKit uses top-left)
         rect = flipYAxis(rect, containerHeight: viewSize.height)
-        
-        // Step 3: Account for preview layer's video gravity if provided
-        if let layer = previewLayer {
-            rect = accountForVideoGravity(rect, previewLayer: layer)
-        }
-        
         return rect
     }
     

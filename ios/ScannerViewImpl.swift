@@ -329,7 +329,7 @@ class ScannerViewImpl: UIView {
     /// - Parameter observations: Barcode observations to filter
     /// - Returns: Filtered observations
     private func filterByFocusArea(_ observations: [VNBarcodeObservation]) -> [VNBarcodeObservation] {
-        guard focusAreaConfig.enabled, let _ = focusAreaOverlay.getFocusAreaFrame() else {
+        guard focusAreaConfig.enabled, let focusRect = focusAreaOverlay.getFocusAreaFrame() else {
             return observations
         }
         
@@ -342,7 +342,7 @@ class ScannerViewImpl: UIView {
             )
             
             // Check if barcode is within focus area
-            return focusAreaOverlay.isRectInFocusArea(viewRect)
+            return focusRect.contains(viewRect)
         }
     }
     
@@ -395,6 +395,8 @@ class ScannerViewImpl: UIView {
             frameManager.clearAllFrames()
             return
         }
+
+        let focusRect = focusAreaOverlay.getFocusAreaFrame()
         
         var frameDict: [String: CGRect] = [:]
         
@@ -409,8 +411,8 @@ class ScannerViewImpl: UIView {
             )
             
             // Filter by focus area if onlyInFocusArea is enabled
-            if barcodeFramesConfig.onlyInFocusArea && focusAreaConfig.showOverlay {
-                if focusAreaOverlay.isRectInFocusArea(viewRect) {
+            if barcodeFramesConfig.onlyInFocusArea, let focusRect {
+                if focusRect.contains(viewRect) {
                     frameDict[barcodeValue] = viewRect
                 }
             } else {

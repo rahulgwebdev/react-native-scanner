@@ -139,8 +139,9 @@ class FocusAreaOverlayView: UIView, FocusAreaProtocol {
     /// Get the current focus area frame in view coordinates
     /// - Returns: The focus area rectangle
     func getFocusAreaFrame() -> CGRect? {
-        // Implementation: Return frame rect if visible
-        return isOverlayVisible ? frameRect : nil
+        // Return the frame rect regardless of overlay visibility.
+        // Overlay visibility controls drawing; filtering should depend on FocusAreaConfig.enabled.
+        return frameRect.isEmpty ? nil : frameRect
     }
     
     /// Check if a point is within the focus area
@@ -154,6 +155,7 @@ class FocusAreaOverlayView: UIView, FocusAreaProtocol {
     /// - Parameter rect: The rectangle to check
     /// - Returns: True if the rectangle intersects or is contained
     func isRectInFocusArea(_ rect: CGRect) -> Bool {
-        return frameRect.intersects(rect) || frameRect.contains(rect)
+        // Match Android behavior: require barcode box to be fully inside the focus frame.
+        return frameRect.contains(rect)
     }
 }
