@@ -16,7 +16,15 @@ export type {
 export { useCameraInfo } from './hooks/useCameraInfo';
 export type { UseCameraInfoReturn } from './hooks/useCameraInfo';
 
-// Re-export the native component
+// Re-export the native component and event types
 
 export { default as ScannerView } from './ScannerViewNativeComponent';
 export * from './ScannerViewNativeComponent';
+
+// Export event types for better TypeScript inference
+// These are the wrapped NativeSyntheticEvent types that users should use in their handlers
+export type {
+  BarcodeScannedEvent,
+  ScannerErrorEvent,
+  OnLoadEvent,
+} from './ScannerViewNativeComponent';

@@ -1,10 +1,38 @@
-import type { ViewProps } from 'react-native';
-import type { HostComponent } from 'react-native';
-import codegenNativeComponent from 'react-native/Libraries/Utilities/codegenNativeComponent';
-import type {
-  BubblingEventHandler,
-  Double,
-} from 'react-native/Libraries/Types/CodegenTypes';
+import { codegenNativeComponent, type ViewProps, type NativeSyntheticEvent } from 'react-native';
+import type { DirectEventHandler, Double } from 'react-native/Libraries/Types/CodegenTypesNamespace';
+
+// Define codegen types locally (no longer exported from react-native in 0.83)
+
+// Event payload types for better TypeScript inference
+export interface BarcodeScannedEventPayload {
+  barcodes: {
+    data: string;
+    format: string;
+    timestamp: Double;
+    boundingBox?: {
+      left: Double;
+      top: Double;
+      right: Double;
+      bottom: Double;
+    };
+    area?: Double;
+  }[];
+}
+
+export interface ScannerErrorEventPayload {
+  error: string;
+  code: string;
+}
+
+export interface OnLoadEventPayload {
+  success: boolean;
+  error?: string;
+}
+
+// Event types for use in handlers
+export type BarcodeScannedEvent = NativeSyntheticEvent<BarcodeScannedEventPayload>;
+export type ScannerErrorEvent = NativeSyntheticEvent<ScannerErrorEventPayload>;
+export type OnLoadEvent = NativeSyntheticEvent<OnLoadEventPayload>;
 
 // Nested object types for better codegen compatibility
 export interface FocusAreaSize {
@@ -77,30 +105,9 @@ export interface NativeProps extends ViewProps {
    */
   barcodeEmissionInterval?: Double;
 
-  onBarcodeScanned?: BubblingEventHandler<{
-    barcodes: {
-      data: string;
-      format: string;
-      timestamp: Double;
-      boundingBox?: {
-        left: Double;
-        top: Double;
-        right: Double;
-        bottom: Double;
-      };
-      area?: Double;
-    }[];
-  }>;
-  onScannerError?: BubblingEventHandler<{
-    error: string;
-    code: string;
-  }>;
-  onLoad?: BubblingEventHandler<{
-    success: boolean;
-    error?: string;
-  }>;
+  onBarcodeScanned?: DirectEventHandler<BarcodeScannedEventPayload>;
+  onScannerError?: DirectEventHandler<ScannerErrorEventPayload>;
+  onLoad?: DirectEventHandler<OnLoadEventPayload>;
 }
 
-export default codegenNativeComponent<NativeProps>(
-  'ScannerView'
-) as HostComponent<NativeProps>;
+export default codegenNativeComponent<NativeProps>('ScannerView');
