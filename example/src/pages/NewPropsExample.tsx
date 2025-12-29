@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View,
   StyleSheet,
@@ -7,10 +7,12 @@ import {
   Alert,
   Platform,
   ScrollView,
-  type NativeSyntheticEvent,
 } from 'react-native';
 import { ScannerView, BarcodeFormat } from 'react-native-scanner';
-import type { BarcodeScannedEventPayload } from 'react-native-scanner';
+import type {
+  BarcodeScannedEvent,
+  BarcodeScannedEventPayload,
+} from 'react-native-scanner';
 import { check, request, PERMISSIONS, RESULTS } from 'react-native-permissions';
 import {
   SafeAreaProvider,
@@ -66,42 +68,14 @@ function NewPropsExample() {
     setPermission(result);
   };
 
-  const handleBarcodeScanned = (
-    event: NativeSyntheticEvent<{
-      barcodes: {
-        data: string;
-        format: string;
-        timestamp: number;
-        boundingBox?: {
-          left: number;
-          top: number;
-          right: number;
-          bottom: number;
-        };
-        area?: number;
-      }[];
-    }>
-  ) => {
+  const handleBarcodeScanned = (event: BarcodeScannedEvent) => {
     setPauseScanning(true);
 
     const barcodes: BarcodeScannedEventPayload[] =
-      event.nativeEvent.barcodes.map(
-        (barcode: {
-          data: string;
-          format: string;
-          timestamp: number;
-          boundingBox?: {
-            left: number;
-            top: number;
-            right: number;
-            bottom: number;
-          };
-          area?: number;
-        }) => ({
-          ...barcode,
-          format: barcode.format as BarcodeFormat,
-        })
-      );
+      event.nativeEvent.barcodes.map((barcode) => ({
+        ...barcode,
+        format: barcode.format as BarcodeFormat,
+      }));
     if (barcodes.length > 0) {
       const firstBarcode = barcodes[0];
       if (firstBarcode) {

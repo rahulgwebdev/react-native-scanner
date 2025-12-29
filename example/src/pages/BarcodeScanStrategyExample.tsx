@@ -7,14 +7,16 @@ import {
   TouchableOpacity,
   Alert,
   SafeAreaView,
-  type NativeSyntheticEvent,
 } from 'react-native';
 import {
   ScannerView,
   BarcodeScanStrategy,
   BarcodeFormat,
 } from 'react-native-scanner';
-import type { BarcodeScannedEventPayload } from 'react-native-scanner';
+import type {
+  BarcodeScannedEvent,
+  BarcodeScannedEventPayload,
+} from 'react-native-scanner';
 
 const BarcodeScanStrategyExample: React.FC = () => {
   const [selectedStrategy, setSelectedStrategy] = useState<BarcodeScanStrategy>(
@@ -38,40 +40,12 @@ const BarcodeScanStrategyExample: React.FC = () => {
     },
   ];
 
-  const handleBarcodeScanned = (
-    event: NativeSyntheticEvent<{
-      barcodes: {
-        data: string;
-        format: string;
-        timestamp: number;
-        boundingBox?: {
-          left: number;
-          top: number;
-          right: number;
-          bottom: number;
-        };
-        area?: number;
-      }[];
-    }>
-  ) => {
+  const handleBarcodeScanned = (event: BarcodeScannedEvent) => {
     const typedBarcodes: BarcodeScannedEventPayload[] =
-      event.nativeEvent.barcodes.map(
-        (barcode: {
-          data: string;
-          format: string;
-          timestamp: number;
-          boundingBox?: {
-            left: number;
-            top: number;
-            right: number;
-            bottom: number;
-          };
-          area?: number;
-        }) => ({
-          ...barcode,
-          format: barcode.format as BarcodeFormat,
-        })
-      );
+      event.nativeEvent.barcodes.map((barcode) => ({
+        ...barcode,
+        format: barcode.format as BarcodeFormat,
+      }));
     setScannedBarcodes(typedBarcodes);
 
     console.log(
@@ -89,7 +63,9 @@ const BarcodeScanStrategyExample: React.FC = () => {
 
       Alert.alert(
         'Barcodes Scanned!',
-        `Found ${typedBarcodes.length} barcode(s) using strategy: ${selectedStrategy}\n\n${typedBarcodes
+        `Found ${
+          typedBarcodes.length
+        } barcode(s) using strategy: ${selectedStrategy}\n\n${typedBarcodes
           .map(
             (barcode, index) =>
               `${index + 1}. ${barcode.data} (${barcode.format})${

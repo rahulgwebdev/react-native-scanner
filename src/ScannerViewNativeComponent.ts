@@ -1,5 +1,12 @@
-import { codegenNativeComponent, type ViewProps, type NativeSyntheticEvent } from 'react-native';
-import type { DirectEventHandler, Double } from 'react-native/Libraries/Types/CodegenTypesNamespace';
+import {
+  codegenNativeComponent,
+  type ViewProps,
+  type NativeSyntheticEvent,
+} from 'react-native';
+import type {
+  DirectEventHandler,
+  Double,
+} from 'react-native/Libraries/Types/CodegenTypesNamespace';
 
 // Define codegen types locally (no longer exported from react-native in 0.83)
 
@@ -30,7 +37,8 @@ export interface OnLoadEventPayload {
 }
 
 // Event types for use in handlers
-export type BarcodeScannedEvent = NativeSyntheticEvent<BarcodeScannedEventPayload>;
+export type BarcodeScannedEvent =
+  NativeSyntheticEvent<BarcodeScannedEventPayload>;
 export type ScannerErrorEvent = NativeSyntheticEvent<ScannerErrorEventPayload>;
 export type OnLoadEvent = NativeSyntheticEvent<OnLoadEventPayload>;
 

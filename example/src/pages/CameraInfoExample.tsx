@@ -40,8 +40,8 @@ export default function CameraInfoExample() {
     try {
       await refreshInfo();
       Alert.alert('Success', 'Camera information refreshed!');
-    } catch (e) {
-      Alert.alert('Error', 'Failed to refresh camera information');
+    } catch (_e) {
+      Alert.alert('Error', `Failed to refresh camera information ${_e}`);
     }
   };
 

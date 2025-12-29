@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View,
   StyleSheet,
@@ -8,13 +8,13 @@ import {
   Platform,
   Button,
   StatusBar,
-  type NativeSyntheticEvent,
 } from 'react-native';
 import {
   ScannerView,
   BarcodeFormat,
   BarcodeScanStrategy,
   type BarcodeScannedEventPayload,
+  type BarcodeScannedEvent,
 } from 'react-native-scanner';
 import {
   check,
@@ -95,22 +95,7 @@ function FullScreenExample() {
     setPermission(result);
   };
 
-  const handleBarcodeScanned = (
-    event: NativeSyntheticEvent<{
-      barcodes: {
-        data: string;
-        format: string;
-        timestamp: number;
-        boundingBox?: {
-          left: number;
-          top: number;
-          right: number;
-          bottom: number;
-        };
-        area?: number;
-      }[];
-    }>
-  ) => {
+  const handleBarcodeScanned = (event: BarcodeScannedEvent) => {
     console.log('handleBarcodeScanned', event.nativeEvent.barcodes);
     const barcodes: BarcodeScannedEventPayload[] =
       event.nativeEvent.barcodes.map(
@@ -208,8 +193,8 @@ function FullScreenExample() {
         prev.tintColor === '#000000'
           ? '#FF0000'
           : prev.tintColor === '#FF0000'
-            ? '#0000FF'
-            : '#000000',
+          ? '#0000FF'
+          : '#000000',
     }));
   };
 
@@ -220,12 +205,12 @@ function FullScreenExample() {
         prev.position.x === 50 && prev.position.y === 50
           ? { x: 25, y: 25 } // Top-left
           : prev.position.x === 25 && prev.position.y === 25
-            ? { x: 75, y: 25 } // Top-right
-            : prev.position.x === 75 && prev.position.y === 25
-              ? { x: 75, y: 75 } // Bottom-right
-              : prev.position.x === 75 && prev.position.y === 75
-                ? { x: 25, y: 75 } // Bottom-left
-                : { x: 50, y: 50 }, // Back to center
+          ? { x: 75, y: 25 } // Top-right
+          : prev.position.x === 75 && prev.position.y === 25
+          ? { x: 75, y: 75 } // Bottom-right
+          : prev.position.x === 75 && prev.position.y === 75
+          ? { x: 25, y: 75 } // Bottom-left
+          : { x: 50, y: 50 }, // Back to center
     }));
   };
 

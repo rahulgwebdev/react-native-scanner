@@ -8,12 +8,12 @@ import {
   Platform,
   Switch,
   ScrollView,
-  type NativeSyntheticEvent,
 } from 'react-native';
 import {
   ScannerView,
   BarcodeFormat,
   BarcodeScanStrategy,
+  type BarcodeScannedEvent,
 } from 'react-native-scanner';
 import { check, request, PERMISSIONS, RESULTS } from 'react-native-permissions';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -80,39 +80,11 @@ export default function BarcodeFrameExample() {
     }
   };
 
-  const handleBarcodeScanned = (
-    event: NativeSyntheticEvent<{
-      barcodes: {
-        data: string;
-        format: string;
-        timestamp: number;
-        boundingBox?: {
-          left: number;
-          top: number;
-          right: number;
-          bottom: number;
-        };
-        area?: number;
-      }[];
-    }>
-  ) => {
-    const barcodes = event.nativeEvent.barcodes.map(
-      (barcode: {
-        data: string;
-        format: string;
-        timestamp: number;
-        boundingBox?: {
-          left: number;
-          top: number;
-          right: number;
-          bottom: number;
-        };
-        area?: number;
-      }) => ({
-        ...barcode,
-        format: barcode.format as BarcodeFormat,
-      })
-    );
+  const handleBarcodeScanned = (event: BarcodeScannedEvent) => {
+    const barcodes = event.nativeEvent.barcodes.map((barcode) => ({
+      ...barcode,
+      format: barcode.format as BarcodeFormat,
+    }));
     if (barcodes.length === 0) {
       return;
     }
