@@ -12,11 +12,12 @@ import {
   ScannerView,
   BarcodeScanStrategy,
   BarcodeFormat,
-} from 'react-native-scanner';
+} from '@cleanui/react-native-scanner';
 import type {
   BarcodeScannedEvent,
   BarcodeScannedEventPayload,
-} from 'react-native-scanner';
+  ScannerErrorEvent,
+} from '@cleanui/react-native-scanner';
 
 const BarcodeScanStrategyExample: React.FC = () => {
   const [selectedStrategy, setSelectedStrategy] = useState<BarcodeScanStrategy>(
@@ -113,7 +114,7 @@ const BarcodeScanStrategyExample: React.FC = () => {
               style={styles.scanner}
               barcodeScanStrategy={selectedStrategy}
               onBarcodeScanned={handleBarcodeScanned}
-              onScannerError={(event) => {
+              onScannerError={(event: ScannerErrorEvent) => {
                 console.error('Scanner error:', event.nativeEvent);
                 Alert.alert('Scanner Error', event.nativeEvent.error);
               }}

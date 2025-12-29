@@ -13,21 +13,43 @@ A native barcode and QR code scanner for React Native with support for focus are
 
 ## Installation
 
+### Install Beta Version
+
+Currently, the library is in beta. Install the beta version using:
+
 ```bash
-npm install react-native-scanner
+npm install @cleanui/react-native-scanner@beta
 # or
-yarn add react-native-scanner
+yarn add @cleanui/react-native-scanner@beta
 ```
+
+### Install Specific Version
+
+To install a specific beta version:
+
+```bash
+npm install @cleanui/react-native-scanner@1.0.0-beta.1
+# or
+yarn add @cleanui/react-native-scanner@1.0.0-beta.1
+```
+
+> **Note**: Once the library reaches stable release (1.0.0), you can install it without the `@beta` tag:
+> ```bash
+> npm install @cleanui/react-native-scanner
+> # or
+> yarn add @cleanui/react-native-scanner
+> ```
 
 ### Android Setup
 
 Add the following permissions to your `android/app/src/main/AndroidManifest.xml`:
 
 ```xml
-<uses-permission android:name="android.permission.CAMERA" />
-<uses-feature android:name="android.hardware.camera" android:required="true" />
-<uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
-<uses-feature android:name="android.hardware.camera.flash" android:required="false" />
+  <uses-permission android:name="android.permission.CAMERA" />
+  <uses-permission android:name="android.permission.WAKE_LOCK" />
+  <uses-feature android:name="android.hardware.camera" android:required="true" />
+  <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
+  <uses-feature android:name="android.hardware.camera.flash" android:required="false" />
 ```
 
 ## Usage
@@ -37,7 +59,7 @@ Add the following permissions to your `android/app/src/main/AndroidManifest.xml`
 ```tsx
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
-import ScannerView, { BarcodeFormat } from 'react-native-scanner';
+import ScannerView, { BarcodeFormat } from '@cleanui/react-native-scanner';
 
 export default function App() {
   const handleBarcodeScanned = (event) => {
@@ -70,7 +92,7 @@ const styles = StyleSheet.create({
 ```tsx
 import React, { useState } from 'react';
 import { View, StyleSheet, TouchableOpacity, Text } from 'react-native';
-import ScannerView, { BarcodeFormat } from 'react-native-scanner';
+import ScannerView, { BarcodeFormat } from '@cleanui/react-native-scanner';
 
 export default function FocusAreaScanner() {
   const [torchEnabled, setTorchEnabled] = useState(false);
@@ -177,7 +199,7 @@ type FrameSize = number | { width: number; height: number };
 #### BarcodeScanStrategy
 
 ```tsx
-import { BarcodeScanStrategy } from 'react-native-scanner';
+import { BarcodeScanStrategy } from '@cleanui/react-native-scanner';
 
 // Available strategies:
 BarcodeScanStrategy.ONE              // Process only the first barcode detected
@@ -189,7 +211,7 @@ BarcodeScanStrategy.SORT_BY_BIGGEST  // Process all barcodes sorted by size (lar
 ### Barcode Formats
 
 ```tsx
-import { BarcodeFormat } from 'react-native-scanner';
+import { BarcodeFormat } from '@cleanui/react-native-scanner';
 
 // Available formats:
 BarcodeFormat.QR_CODE        // QR Code

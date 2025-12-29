@@ -14,7 +14,7 @@ import {
   BarcodeFormat,
   BarcodeScanStrategy,
   type BarcodeScannedEvent,
-} from 'react-native-scanner';
+} from '@cleanui/react-native-scanner';
 import { check, request, PERMISSIONS, RESULTS } from 'react-native-permissions';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useReliableInsets } from '../hooks';

@@ -8,7 +8,7 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useCameraInfo } from 'react-native-scanner';
+import { useCameraInfo } from '@cleanui/react-native-scanner';
 import type { NavigationProp } from '../types/navigation';
 import React from 'react';
 

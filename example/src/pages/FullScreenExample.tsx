@@ -15,7 +15,7 @@ import {
   BarcodeScanStrategy,
   type BarcodeScannedEventPayload,
   type BarcodeScannedEvent,
-} from 'react-native-scanner';
+} from '@cleanui/react-native-scanner';
 import {
   check,
   request,

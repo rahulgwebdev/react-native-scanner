@@ -1,6 +1,6 @@
 {
-  "name": "react-native-scanner",
-  "version": "0.1.0",
+  "name": "@cleanui/react-native-scanner",
+  "version": "1.0.0-beta.1",
   "description": "scanner",
   "main": "./lib/module/index.js",
   "types": "./lib/typescript/src/index.d.ts",
@@ -58,7 +58,8 @@
   },
   "homepage": "https://github.com/rahulgwebdev/react-native-scanner#readme",
   "publishConfig": {
-    "registry": "https://registry.npmjs.org/"
+    "registry": "https://registry.npmjs.org/",
+    "access": "public"
   },
   "devDependencies": {
     "@commitlint/config-conventional": "^19.8.1",
@@ -149,7 +150,8 @@
       "tagName": "v${version}"
     },
     "npm": {
-      "publish": true
+      "publish": true,
+      "tag": "beta"
     },
     "github": {
       "release": true
