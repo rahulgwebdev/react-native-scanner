@@ -1523,9 +1523,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@cleanui/react-native-scanner@workspace:*, @cleanui/react-native-scanner@workspace:.":
+"@cleanuidev/react-native-scanner@workspace:*, @cleanuidev/react-native-scanner@workspace:.":
   version: 0.0.0-use.local
-  resolution: "@cleanui/react-native-scanner@workspace:."
+  resolution: "@cleanuidev/react-native-scanner@workspace:."
   dependencies:
     "@commitlint/config-conventional": "npm:^19.8.1"
     "@eslint/compat": "npm:^1.3.2"
@@ -10813,7 +10813,7 @@ __metadata:
     "@babel/core": "npm:^7.25.2"
     "@babel/preset-env": "npm:^7.25.3"
     "@babel/runtime": "npm:^7.25.0"
-    "@cleanui/react-native-scanner": "workspace:*"
+    "@cleanuidev/react-native-scanner": "workspace:*"
     "@react-native-community/cli": "npm:18.0.0"
     "@react-native-community/cli-platform-android": "npm:18.0.0"
     "@react-native-community/cli-platform-ios": "npm:18.0.0"
