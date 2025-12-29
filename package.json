@@ -1,5 +1,5 @@
 {
-  "name": "@cleanui/react-native-scanner",
+  "name": "@cleanuidev/react-native-scanner",
   "version": "1.0.0-beta.2",
   "description": "scanner",
   "main": "./lib/module/index.js",
