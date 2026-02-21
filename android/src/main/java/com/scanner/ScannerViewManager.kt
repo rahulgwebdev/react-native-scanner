@@ -76,8 +76,8 @@ class ScannerViewManager : SimpleViewManager<ScannerView>(),
           size.type == ReadableType.Number -> FrameSize.Square(size.asInt())
           size.type == ReadableType.Map -> {
             val frameSizeMap = size.asMap()
-            val width = frameSizeMap.getInt("width")
-            val height = frameSizeMap.getInt("height")
+            val width = frameSizeMap?.getInt("width") ?: 0
+            val height = frameSizeMap?.getInt("height") ?: 0
             FrameSize.Rectangle(width, height)
           }
           else -> FrameSize.Square(300) // Default

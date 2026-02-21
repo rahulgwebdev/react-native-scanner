@@ -13,15 +13,21 @@
 
 **Built with ❤️ by [CleanUI.dev](https://cleanui.dev)**
 
-[Features](#-features) • [Why Choose](#-why-choose-this-library) • [Comparison](#-comparison-with-other-libraries) • [Quick Start](#-quick-start) • [Installation](#-installation) • [FAQ](#-frequently-asked-questions)
-
 </div>
 
 ---
 
-## ✨ Features
+## What’s in this README
 
-<div align="center">
+- [Features](#-features) — What the library does
+- [Quick Start](#-quick-start) — Get running in a few lines
+- [Installation](#-installation) — Expo vs bare React Native
+- [Usage & API](#usage) — Examples and prop reference
+- [FAQ](#-frequently-asked-questions) — Common questions
+
+---
+
+## ✨ Features
 
 | Feature | Description |
 |:------:|:-----------|
@@ -34,22 +40,14 @@
 
 </div>
 
----
 
 ## 🎯 Why Choose @cleanuidev/react-native-scanner?
 
-- **🎯 Target Area Scanning**: Unlike other libraries, built-in support for limiting scan area, restricting scanning region, and scanning within configurable target areas for precise detection
-- **🚀 High Performance**: Uses native CameraX & ML Kit (Android) and AVFoundation & Vision (iOS) for optimal performance
-- **📱 New Architecture Ready**: Full support for React Native's new architecture (Fabric) on both platforms
-- **🔧 Easy Integration**: Simple API with sensible defaults - get started in minutes
-- **📊 Multiple Scan Strategies**: Process one, all, largest, or sorted barcodes with built-in strategies
-- **🎨 Highly Customizable**: Configurable target areas, barcode frames, and scanning behavior
-- **📦 Lightweight**: Minimal dependencies, optimized bundle size
-- **✅ Active Maintenance**: Regularly updated with bug fixes and new features
+ If you mainly need barcode/QR scanning and want a **focus area** (scan only inside a box) without wiring it yourself, this library gives you that out of the box. For a full comparison, see the table below.
 
 ---
 
-## 🆚 Comparison with Other Libraries
+## 🆚 Comparison
 
 | Feature | @cleanuidev/react-native-scanner | react-native-vision-camera | expo-camera |
 |---------|--------------------------------|---------------------------|-------------|
@@ -103,9 +101,9 @@ yarn add @cleanuidev/react-native-scanner@beta
 To install a specific beta version:
 
 ```bash
-npm install @cleanuidev/react-native-scanner@1.0.0-beta.6
+npm install @cleanuidev/react-native-scanner@1.0.0-beta.7
 # or
-yarn add @cleanuidev/react-native-scanner@1.0.0-beta.6
+yarn add @cleanuidev/react-native-scanner@1.0.0-beta.7
 ```
 
 > **Note**: Once the library reaches stable release (1.0.0), you can install it without the `@beta` tag:
@@ -202,15 +200,57 @@ For iOS, add camera usage description to your `ios/YourApp/Info.plist`:
 <string>This app needs camera access to scan barcodes and QR codes</string>
 ```
 
-Then install CocoaPods dependencies:
+Then install CocoaPods:
 
 ```bash
 cd ios && pod install && cd ..
 ```
 
+---
+
 ## Usage
 
-### Basic Scanner
+## Permissions
+
+Request camera permission before showing the scanner. Use [react-native-permissions](https://github.com/zoontek/react-native-permissions) to request on both Android and iOS:
+
+```bash
+npm install react-native-permissions
+# Then link and add to Info.plist (iOS) / AndroidManifest (Android) per the library’s setup.
+```
+
+```tsx
+import { Platform } from 'react-native';
+import { check, request, PERMISSIONS, RESULTS } from 'react-native-permissions';
+
+const cameraPermission =
+  Platform.OS === 'ios'
+    ? PERMISSIONS.IOS.CAMERA
+    : PERMISSIONS.ANDROID.CAMERA;
+
+const requestCameraPermission = async (): Promise<boolean> => {
+  const status = await check(cameraPermission);
+  if (status === RESULTS.GRANTED) return true;
+  if (status === RESULTS.BLOCKED || status === RESULTS.UNAVAILABLE) return false;
+
+  const result = await request(cameraPermission);
+  return result === RESULTS.GRANTED;
+};
+
+// Usage: request before showing the scanner
+const [hasPermission, setHasPermission] = useState<boolean | null>(null);
+
+useEffect(() => {
+  requestCameraPermission().then(setHasPermission);
+}, []);
+
+if (hasPermission === null) return null; // or a loading state
+if (!hasPermission) return <Text>Camera permission is required</Text>;
+
+return <ScannerView ... />;
+```
+
+### Basic scanner
 
 ```tsx
 import React from 'react';
@@ -261,7 +301,6 @@ export default function FocusAreaScanner() {
     color: '#00FF00',    // Color of the target area border
   };
 
-  // Barcode frames configuration
   const barcodeFramesConfig = {
     enabled: true,        // Show frames around detected barcodes
     color: '#FF0000',     // Color of barcode frames
@@ -364,7 +403,7 @@ BarcodeScanStrategy.BIGGEST          // Process only the largest barcode by area
 BarcodeScanStrategy.SORT_BY_BIGGEST  // Process all barcodes sorted by size (largest first)
 ```
 
-### Barcode Formats
+### Barcode formats
 
 ```tsx
 import { BarcodeFormat } from '@cleanuidev/react-native-scanner';
@@ -454,7 +493,6 @@ Limit scan area and restrict scanning to a specific region:
     size: 300,           // 300x300 pixel square
     color: '#00FF00',    // Green border
   }}
-  // Only scans within the limited scan area
 />
 ```
 
@@ -504,7 +542,7 @@ You can position the target area anywhere on the screen using percentage-based c
 />
 ```
 
-## Barcode Frame Visualization
+## Barcode frames
 
 The scanner can display visual frames around detected barcodes to help users see what's being scanned:
 
@@ -605,11 +643,7 @@ The torch/flashlight can be controlled via the `torch` prop:
 
 ```tsx
 const [torchEnabled, setTorchEnabled] = useState(false);
-
-<ScannerView
-  torch={torchEnabled}
-  // ... other props
-/>
+<ScannerView torch={torchEnabled} ... />
 ```
 
 ## Keep Screen On
@@ -724,7 +758,7 @@ Yes! The target area is optional. By default, you can scan the entire camera vie
 QR Code, Code128, Code39, EAN-13, EAN-8, UPC-A, UPC-E, Data Matrix, PDF417, Aztec, and ITF (Interleaved 2 of 5). See the [Barcode Formats](#barcode-formats) section for the complete list.
 
 ### Is it production-ready?
-The library is currently in beta (1.0.0-beta.6) but is stable and actively maintained. Production use is recommended with proper testing. We're working towards a stable 1.0.0 release.
+The library is currently in beta (1.0.0-beta.7) but is stable and actively maintained. Production use is recommended with proper testing. We're working towards a stable 1.0.0 release.
 
 ### Does it work with React Native 0.83+?
 Yes! The library supports React Native 0.83 and newer versions, including full support for the new architecture.
@@ -793,7 +827,3 @@ Need professional help with implementation, custom development, or enterprise su
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
----
-
-Made with [create-react-native-library](https://github.com/callstack/react-native-builder-bob)
