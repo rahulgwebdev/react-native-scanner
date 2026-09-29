@@ -49,6 +49,9 @@ class CameraManager: NSObject, CameraControlProtocol {
     
     /// Observer for subject area change (refocus when scene changes, like native Camera app)
     private var subjectAreaObserver: NSObjectProtocol?
+
+    /// Observer for device rotation, so capture and preview stay in one coordinate space
+    private var orientationObserver: NSObjectProtocol?
     
     // MARK: - Initialization
     
@@ -88,6 +91,7 @@ class CameraManager: NSObject, CameraControlProtocol {
                 self.applyZoom()
                 self.applyTorch()
                 self.setupFocusAndExposure()
+                self.updateVideoOrientation()
                 
                 DispatchQueue.main.async {
                     self.delegate?.cameraManagerDidStart(self)
@@ -412,12 +416,127 @@ class CameraManager: NSObject, CameraControlProtocol {
         }
     }
     
+    // MARK: - Video Orientation
+    //
+    // Capture buffers, the preview layer and Vision must all share one coordinate
+    // space. They previously did not: the video-data-output connection was never
+    // configured, so in portrait the buffers arrived in landscape sensor
+    // orientation while `AVCaptureVideoPreviewLayer`'s metadata space is portrait.
+    // Vision's normalized rects were then fed through
+    // `layerRectConverted(fromMetadataOutputRect:)`, which effectively swapped X
+    // and Y — so the focus-area containment test checked the wrong region and
+    // barcode frames were drawn in the wrong place.
+    //
+    // Rotating at the connection costs a per-frame transform, but it buys a single
+    // unambiguous coordinate model shared by capture, preview, detection and ROI
+    // cropping. Leaving the buffers native and passing a matching
+    // `CGImagePropertyOrientation` to Vision is cheaper, but reintroduces an
+    // orientation mapping table that is easy to get wrong in exactly this way.
+
+    /// Read the interface orientation on the main thread, then apply it to the
+    /// capture connections on the session queue.
+    func updateVideoOrientation() {
+        let apply: (UIInterfaceOrientation) -> Void = { [weak self] interfaceOrientation in
+            self?.sessionQueue.async {
+                self?.applyVideoOrientation(interfaceOrientation)
+            }
+        }
+
+        if Thread.isMainThread {
+            apply(Self.currentInterfaceOrientation())
+        } else {
+            DispatchQueue.main.async { apply(Self.currentInterfaceOrientation()) }
+        }
+    }
+
+    private func applyVideoOrientation(_ interfaceOrientation: UIInterfaceOrientation) {
+        let connections: [AVCaptureConnection] = [
+            videoDataOutput?.connection(with: .video),
+            previewLayer?.connection
+        ].compactMap { $0 }
+
+        guard !connections.isEmpty else { return }
+
+        for connection in connections {
+            if #available(iOS 17.0, *) {
+                let angle = Self.videoRotationAngle(for: interfaceOrientation)
+                if connection.isVideoRotationAngleSupported(angle) {
+                    connection.videoRotationAngle = angle
+                }
+            } else {
+                let orientation = Self.videoOrientation(for: interfaceOrientation)
+                if connection.isVideoOrientationSupported {
+                    connection.videoOrientation = orientation
+                }
+            }
+        }
+
+        print("[CameraManager] ✅ Video orientation applied for interface orientation \(interfaceOrientation.rawValue)")
+    }
+
+    private static func currentInterfaceOrientation() -> UIInterfaceOrientation {
+        let scene = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .first { $0.activationState == .foregroundActive }
+            ?? UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first
+
+        let orientation = scene?.interfaceOrientation ?? .portrait
+        return orientation == .unknown ? .portrait : orientation
+    }
+
+    /// Clockwise rotation, in degrees, from the camera's native landscape-right.
+    private static func videoRotationAngle(for orientation: UIInterfaceOrientation) -> CGFloat {
+        switch orientation {
+        case .portrait:            return 90
+        case .portraitUpsideDown:  return 270
+        case .landscapeLeft:       return 180
+        case .landscapeRight:      return 0
+        default:                   return 90
+        }
+    }
+
+    /// Note the landscape cases: `UIInterfaceOrientation` and
+    /// `AVCaptureVideoOrientation` share names but not raw values, so this maps by
+    /// name rather than by `rawValue`.
+    private static func videoOrientation(for orientation: UIInterfaceOrientation) -> AVCaptureVideoOrientation {
+        switch orientation {
+        case .portrait:            return .portrait
+        case .portraitUpsideDown:  return .portraitUpsideDown
+        case .landscapeLeft:       return .landscapeLeft
+        case .landscapeRight:      return .landscapeRight
+        default:                   return .portrait
+        }
+    }
+
+    private func registerOrientationObserverIfNeeded() {
+        guard orientationObserver == nil else { return }
+        orientationObserver = NotificationCenter.default.addObserver(
+            forName: UIDevice.orientationDidChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.updateVideoOrientation()
+        }
+    }
+
+    private func unregisterOrientationObserver() {
+        if let observer = orientationObserver {
+            NotificationCenter.default.removeObserver(observer)
+            orientationObserver = nil
+        }
+    }
+
     /// Setup preview layer
     private func setupPreviewLayer() {
         let preview = AVCaptureVideoPreviewLayer(session: captureSession)
         preview.videoGravity = .resizeAspectFill
         previewLayer = preview
         print("[CameraManager] Preview layer created")
+
+        // Preview and capture connections must be rotated together, or their
+        // coordinate spaces diverge again.
+        registerOrientationObserverIfNeeded()
+        updateVideoOrientation()
     }
     
     // MARK: - Camera Configuration
@@ -507,6 +626,7 @@ class CameraManager: NSObject, CameraControlProtocol {
     
     deinit {
         unregisterSubjectAreaChangeObserver()
+        unregisterOrientationObserver()
         stopCamera()
         print("[CameraManager] Deinitialized")
     }

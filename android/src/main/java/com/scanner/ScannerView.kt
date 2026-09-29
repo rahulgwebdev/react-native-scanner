@@ -16,6 +16,9 @@ import androidx.annotation.OptIn
 import androidx.camera.core.*
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
+import androidx.camera.core.resolutionselector.ResolutionSelector
+import androidx.camera.core.resolutionselector.ResolutionStrategy
+import androidx.camera.core.resolutionselector.AspectRatioStrategy
 import androidx.camera.camera2.interop.Camera2CameraControl
 import androidx.camera.camera2.interop.CaptureRequestOptions
 import android.hardware.camera2.CaptureRequest
@@ -25,6 +28,8 @@ import androidx.lifecycle.LifecycleOwner
 import com.facebook.react.bridge.*
 import com.facebook.react.uimanager.ThemedReactContext
 import com.google.mlkit.vision.barcode.BarcodeScanning
+import com.google.mlkit.vision.barcode.BarcodeScanner
+import com.google.mlkit.vision.barcode.BarcodeScannerOptions
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
 import java.util.concurrent.ExecutorService
@@ -45,7 +50,12 @@ class ScannerView : FrameLayout {
   private var imageAnalyzer: ImageAnalysis? = null
   private var preview: Preview? = null
   private var cameraExecutor: ExecutorService = Executors.newSingleThreadExecutor()
-  private var barcodeScanner = BarcodeScanning.getClient()
+
+  // Requested barcode formats. Empty == all formats, which is the default: field
+  // operators do not know barcode types, they just scan what is on the equipment.
+  private var requestedFormats: List<String> = emptyList()
+  private var barcodeScanner: BarcodeScanner = buildBarcodeScanner(emptyList())
+  private var isScannerClosed: Boolean = false
   private var previewView: PreviewView? = null
   private var overlayView: FocusAreaView? = null
   private var barcodeFrameOverlayView: BarcodeFrameOverlayView? = null
@@ -99,6 +109,39 @@ class ScannerView : FrameLayout {
     defStyleAttr
   ) {
     initScannerView(context)
+  }
+
+  /**
+   * Build an ML Kit client restricted to [formats]. An empty list means all
+   * formats, which is the default for this library.
+   *
+   * Restricting the set is meaningfully faster and reduces cross-symbology
+   * confusion, so integrators who do know their formats should pass them.
+   */
+  private fun buildBarcodeScanner(formats: List<String>): BarcodeScanner {
+    val mlKitFormats = formats.mapNotNull { BarcodeFormats.toMlKitFormat(it) }
+    if (mlKitFormats.isEmpty()) {
+      Log.d(TAG, "Barcode formats: ALL")
+      return BarcodeScanning.getClient()
+    }
+    val options = BarcodeScannerOptions.Builder()
+      .setBarcodeFormats(mlKitFormats.first(), *mlKitFormats.drop(1).toIntArray())
+      .build()
+    Log.d(TAG, "Barcode formats restricted to: $formats")
+    return BarcodeScanning.getClient(options)
+  }
+
+  /**
+   * Set the barcode formats to detect. An empty or null list restores all formats.
+   * Rebuilds the ML Kit client, since the format set is fixed at construction.
+   */
+  fun setBarcodeFormats(formats: List<String>) {
+    if (formats == requestedFormats) return
+    requestedFormats = formats
+    val previous = barcodeScanner
+    barcodeScanner = buildBarcodeScanner(formats)
+    if (!isScannerClosed) previous.close()
+    isScannerClosed = false
   }
 
   private fun initScannerView(context: Context) {
@@ -220,6 +263,19 @@ class ScannerView : FrameLayout {
   private fun startCamera() {
     Log.d(TAG, "Starting camera...")
 
+    // stopCamera() shuts the executor down and closes the ML Kit client, so a
+    // detach/re-attach cycle (navigating away and back) would otherwise hit
+    // RejectedExecutionException on a dead executor and a closed scanner.
+    if (cameraExecutor.isShutdown) {
+      cameraExecutor = Executors.newSingleThreadExecutor()
+      Log.d(TAG, "Camera executor recreated after shutdown")
+    }
+    if (isScannerClosed) {
+      barcodeScanner = buildBarcodeScanner(requestedFormats)
+      isScannerClosed = false
+      Log.d(TAG, "Barcode scanner recreated after close")
+    }
+
     if (!hasCameraPermission()) {
       Log.e(TAG, "Camera permission not granted")
       emitOnScannerError("Camera permission not granted", "CAMERA_PERMISSION_DENIED")
@@ -251,6 +307,7 @@ class ScannerView : FrameLayout {
     cameraProvider?.unbindAll()
     cameraExecutor.shutdown()
     barcodeScanner.close()
+    isScannerClosed = true
 
     // Release wake lock when camera stops
     updateKeepScreenOn(false)
@@ -286,9 +343,29 @@ class ScannerView : FrameLayout {
           it.setSurfaceProvider(surfaceProvider)
         }
 
-      // Image Analysis
+      // Image Analysis.
+      //
+      // Without an explicit resolution CameraX defaults ImageAnalysis to 640x480,
+      // which is far too coarse for small or dense codes (Data Matrix on an
+      // equipment nameplate). Too few pixels per barcode module also leaves no
+      // margin before motion blur corrupts the decode, which is the reported
+      // "blurry frame reads a wrong value" failure.
+      //
+      // 1080p costs analysis throughput on mid-range devices, but KEEP_ONLY_LATEST
+      // absorbs the backpressure and accuracy outranks latency here.
+      val analysisResolution = ResolutionSelector.Builder()
+        .setAspectRatioStrategy(AspectRatioStrategy.RATIO_16_9_FALLBACK_AUTO_STRATEGY)
+        .setResolutionStrategy(
+          ResolutionStrategy(
+            Size(1920, 1080),
+            ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER
+          )
+        )
+        .build()
+
       imageAnalyzer = ImageAnalysis.Builder()
-//        .setTargetResolution(Size(1280, 720)) // review this later if needed
+        .setResolutionSelector(analysisResolution)
+        .setTargetRotation(previewView?.display?.rotation ?: Surface.ROTATION_0)
         .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
         .build()
         .also {
@@ -473,7 +550,7 @@ class ScannerView : FrameLayout {
                 processedBarcodes.forEach { barcode ->
                   val eventData = Arguments.createMap().apply {
                     putString("data", barcode.rawValue)
-                    putString("format", barcode.format.toString())
+                    putString("format", BarcodeFormats.toName(barcode.format))
                     putDouble("timestamp", System.currentTimeMillis().toDouble())
 
                     // Add bounding box if available

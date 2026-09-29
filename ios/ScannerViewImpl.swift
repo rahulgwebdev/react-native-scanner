@@ -327,8 +327,12 @@ class ScannerViewImpl: UIView {
                 previewLayer: previewLayer
             )
             
-            // Get the barcode format string
-            let formatString = observation.symbology.rawValue
+            // Emit the JS `BarcodeFormat` name, not Vision's internal identifier
+            // (e.g. "QR_CODE", never "VNBarcodeSymbologyQR").
+            let formatString = BarcodeFormat.jsFormatName(
+                for: observation.symbology,
+                payload: observation.payloadStringValue ?? ""
+            )
             
             // Create result
             if let result = BarcodeDetectionResult.from(

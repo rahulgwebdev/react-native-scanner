@@ -13,6 +13,8 @@ export enum BarcodeFormat {
   PDF_417 = 'PDF_417',
   AZTEC = 'AZTEC',
   ITF = 'ITF',
+  CODE_93 = 'CODE_93',
+  CODABAR = 'CODABAR',
 }
 
 // Barcode scan strategy enum

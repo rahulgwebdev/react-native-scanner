@@ -24,27 +24,86 @@ enum BarcodeFormat: String {
     case pdf417 = "PDF_417"
     case aztec = "AZTEC"
     case itf = "ITF"
-    
-    /// Convert to Vision framework symbology
-    var visionSymbology: VNBarcodeSymbology {
+    case code93 = "CODE_93"
+    case codabar = "CODABAR"
+
+    /// Vision symbologies covered by this format.
+    ///
+    /// Several JS formats map to more than one symbology, because Vision splits
+    /// variants that ML Kit and the JS API treat as a single format.
+    var visionSymbologies: [VNBarcodeSymbology] {
         switch self {
-        case .qrCode: return .qr
-        case .code128: return .code128
-        case .code39: return .code39
-        case .ean13: return .ean13
-        case .ean8: return .ean8
-        case .upcA: return .upce  // Note: UPCA is handled as UPCE in Vision
-        case .upcE: return .upce
-        case .dataMatrix: return .dataMatrix
-        case .pdf417: return .pdf417
-        case .aztec: return .aztec
-        case .itf: return .itf14
+        case .qrCode: return [.qr, .microQR]
+        case .code128: return [.code128]
+        case .code39: return [.code39, .code39Checksum, .code39FullASCII]
+        case .code93: return [.code93, .code93i]
+        case .codabar: return [.codabar]
+        case .ean13: return [.ean13]
+        case .ean8: return [.ean8]
+        // Vision has no distinct UPC-A symbology: it reports UPC-A as EAN-13 with
+        // a leading zero. Mapping UPC_A to .upce meant requesting UPC_A detected
+        // nothing at all.
+        case .upcA: return [.ean13]
+        case .upcE: return [.upce]
+        case .dataMatrix: return [.dataMatrix]
+        case .pdf417: return [.pdf417, .microPDF417]
+        case .aztec: return [.aztec]
+        // .itf14 enforces 14 digits. Plain .i2of5 has no check digit and a
+        // substring of a real code decodes as a valid code, so it is held to a
+        // higher consensus bar in the verification layer.
+        case .itf: return [.itf14, .i2of5, .i2of5Checksum]
         }
     }
     
+    /// Map a Vision symbology back to the JS `BarcodeFormat` name.
+    ///
+    /// `VNBarcodeSymbology.rawValue` is an Apple identifier like
+    /// "VNBarcodeSymbologyQR", which is not a member of the JS `BarcodeFormat`
+    /// enum — emitting it directly broke the `BarcodeScannedEventPayload.format`
+    /// contract the same way Android's raw integer did.
+    ///
+    /// `payload` is needed because Vision has no distinct UPC-A symbology: it
+    /// reports UPC-A as a 13-digit EAN-13 with a leading zero. ML Kit reports
+    /// those as UPC_A with 12 digits, so this normalizes iOS to match.
+    static func jsFormatName(for symbology: VNBarcodeSymbology, payload: String) -> String {
+        switch symbology {
+        case .qr, .microQR: return "QR_CODE"
+        case .aztec: return "AZTEC"
+        case .dataMatrix: return "DATA_MATRIX"
+        case .pdf417, .microPDF417: return "PDF_417"
+        case .code128: return "CODE_128"
+        case .code39, .code39Checksum, .code39FullASCII, .code39FullASCIIChecksum:
+            return "CODE_39"
+        case .code93, .code93i: return "CODE_93"
+        case .codabar: return "CODABAR"
+        case .ean8: return "EAN_8"
+        case .ean13: return isUPCA(payload) ? "UPC_A" : "EAN_13"
+        case .upce: return "UPC_E"
+        case .itf14, .i2of5, .i2of5Checksum: return "ITF"
+        default: return "UNKNOWN"
+        }
+    }
+
+    /// Normalize a payload for the JS layer. Strips the EAN-13 leading zero from
+    /// UPC-A codes so the emitted value is the 12 digits printed on the label,
+    /// which is also what ML Kit returns.
+    static func normalizePayload(_ payload: String, symbology: VNBarcodeSymbology) -> String {
+        guard symbology == .ean13, isUPCA(payload) else { return payload }
+        return String(payload.dropFirst())
+    }
+
+    /// An EAN-13 beginning with "0" is a UPC-A code; that prefix is the GS1
+    /// allocation for the US/Canada, which is exactly the UPC-A range.
+    private static func isUPCA(_ payload: String) -> Bool {
+        return payload.count == 13
+            && payload.hasPrefix("0")
+            && payload.allSatisfy { $0.isNumber }
+    }
+
     /// Get all supported formats
     static var allFormats: [BarcodeFormat] {
-        return [.qrCode, .code128, .code39, .ean13, .ean8, .upcA, .upcE, .dataMatrix, .pdf417, .aztec, .itf]
+        return [.qrCode, .code128, .code39, .code93, .codabar, .ean13, .ean8,
+                .upcA, .upcE, .dataMatrix, .pdf417, .aztec, .itf]
     }
 }
 
@@ -232,9 +291,13 @@ struct BarcodeDetectionResult {
     static func from(observation: VNBarcodeObservation, 
                     boundingBox: CGRect? = nil,
                     format: String? = nil) -> BarcodeDetectionResult? {
-        guard let payloadString = observation.payloadStringValue else { return nil }
-        
-        let detectedFormat = format ?? observation.symbology.rawValue
+        guard let rawPayload = observation.payloadStringValue else { return nil }
+
+        let payloadString = BarcodeFormat.normalizePayload(rawPayload, symbology: observation.symbology)
+        let detectedFormat = format ?? BarcodeFormat.jsFormatName(
+            for: observation.symbology,
+            payload: rawPayload
+        )
         let timestamp = Date().timeIntervalSince1970 * 1000 // Convert to milliseconds
         
         let area = boundingBox.map { $0.width * $0.height }

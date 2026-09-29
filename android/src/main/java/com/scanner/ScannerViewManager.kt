@@ -31,15 +31,16 @@ class ScannerViewManager : SimpleViewManager<ScannerView>(),
   // Barcode configuration
   @ReactProp(name = "barcodeTypes")
   override fun setBarcodeTypes(view: ScannerView?, types: ReadableArray?) {
+    // A null or empty list means "all formats", which is the default: field
+    // operators do not know barcode types, they just scan what is in front of them.
+    val typeList = mutableListOf<String>()
     if (types != null) {
-      val typeList = mutableListOf<String>()
       for (i in 0 until types.size()) {
-        typeList.add(types.getString(i) ?: "")
+        types.getString(i)?.takeIf { it.isNotBlank() }?.let { typeList.add(it) }
       }
-      Log.d("ScannerViewManager", "Barcode types set: $typeList")
-      // Note: The actual barcode type filtering would be implemented in ScannerView
-      // For now, ML Kit will detect all supported barcode types
     }
+    Log.d("ScannerViewManager", "Barcode types set: $typeList")
+    view?.setBarcodeFormats(typeList)
   }
 
   // Focus area configuration

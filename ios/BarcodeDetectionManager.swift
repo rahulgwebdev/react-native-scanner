@@ -30,15 +30,39 @@ class BarcodeDetectionManager: NSObject, BarcodeScannerProtocol {
     
     /// Background queue for detection
     private let detectionQueue: DispatchQueue
+
+    /// Guards against queueing frames faster than they can be decoded.
+    private let detectionStateLock = NSLock()
+    private var isDetecting: Bool = false
+
+    /// Every symbology this library can decode.
+    ///
+    /// The default is deliberately "everything": operators in the field do not
+    /// know barcode types, they scan whatever is printed on the equipment.
+    /// Accuracy is defended in the verification layer (per-format consensus
+    /// tiers, checksums, edge-touch rejection) rather than by narrowing this set.
+    ///
+    /// Integrators who DO know their formats should pass `barcodeTypes` — a
+    /// smaller set is faster and reduces cross-symbology confusion.
+    /// Deliberately excludes MSI Plessey and the GS1 DataBar family: ML Kit has no
+    /// counterpart, so supporting them on iOS alone would mean a label that scans
+    /// on one platform and not the other. Platform parity outranks raw coverage
+    /// for a cross-platform library.
+    static let allSymbologies: [VNBarcodeSymbology] = [
+        .qr, .microQR, .aztec, .dataMatrix, .pdf417, .microPDF417,
+        .code128, .code39, .code39Checksum, .code39FullASCII,
+        .code93, .code93i,
+        .ean8, .ean13, .upce,
+        .itf14, .i2of5, .i2of5Checksum,
+        .codabar
+    ]
+
     
     // MARK: - Initialization
     
     override init() {
         // Default: all supported formats
-        self.supportedSymbologies = [
-            .qr, .code128, .code39, .ean13, .ean8,
-            .upce, .pdf417, .aztec, .dataMatrix, .itf14
-        ]
+        self.supportedSymbologies = BarcodeDetectionManager.allSymbologies
         self.scanStrategy = .defaultStrategy
         self.scanningPaused = false
         self.detectionQueue = DispatchQueue(label: "com.scanner.detection")
@@ -80,6 +104,10 @@ class BarcodeDetectionManager: NSObject, BarcodeScannerProtocol {
     /// - Parameters:
     ///   - sampleBuffer: The sample buffer to analyze
     ///   - completion: Completion handler with observations
+    /// - Note: `completion` runs only for frames that are actually decoded.
+    ///   Frames dropped because a detection is already in flight do not call back,
+    ///   so callers never see a spurious empty result (which would clear the
+    ///   on-screen barcode frames and cause flicker).
     func detectBarcodes(in sampleBuffer: CMSampleBuffer,
                        completion: @escaping ([VNBarcodeObservation]) -> Void) {
         guard !scanningPaused else {
@@ -91,20 +119,40 @@ class BarcodeDetectionManager: NSObject, BarcodeScannerProtocol {
             completion([])
             return
         }
+
+        // `alwaysDiscardsLateVideoFrames` only drops at the output stage. Once a
+        // frame is dispatched onto the serial detection queue it is committed, so
+        // without this guard frames pile up unbounded and we decode stale ones
+        // long after the camera has moved on.
+        detectionStateLock.lock()
+        if isDetecting {
+            detectionStateLock.unlock()
+            return
+        }
+        isDetecting = true
+        detectionStateLock.unlock()
+
+        let finish: ([VNBarcodeObservation]) -> Void = { [weak self] observations in
+            guard let self = self else { return }
+            self.detectionStateLock.lock()
+            self.isDetecting = false
+            self.detectionStateLock.unlock()
+            completion(observations)
+        }
         
         let request = VNDetectBarcodesRequest { request, error in
             if let error = error {
                 print("[BarcodeDetectionManager] Detection error: \(error)")
-                completion([])
+                finish([])
                 return
             }
             
             guard let results = request.results as? [VNBarcodeObservation] else {
-                completion([])
+                finish([])
                 return
             }
             
-            completion(results)
+            finish(results)
         }
         
         request.symbologies = supportedSymbologies
@@ -119,7 +167,7 @@ class BarcodeDetectionManager: NSObject, BarcodeScannerProtocol {
                 try handler.perform([request])
             } catch {
                 print("[BarcodeDetectionManager] Detection failed: \(error)")
-                completion([])
+                finish([])
             }
         }
     }
@@ -129,6 +177,9 @@ class BarcodeDetectionManager: NSObject, BarcodeScannerProtocol {
     /// Pause barcode scanning
     func pauseScanning() {
         scanningPaused = true
+        detectionStateLock.lock()
+        isDetecting = false
+        detectionStateLock.unlock()
         print("[BarcodeDetectionManager] Scanning paused")
     }
     
@@ -150,12 +201,11 @@ class BarcodeDetectionManager: NSObject, BarcodeScannerProtocol {
     func setBarcodeFormats(_ formats: [BarcodeFormat]) {
         if formats.isEmpty {
             // If empty, use all supported formats
-            supportedSymbologies = [
-                .qr, .code128, .code39, .ean13, .ean8,
-                .upce, .pdf417, .aztec, .dataMatrix, .itf14
-            ]
+            supportedSymbologies = BarcodeDetectionManager.allSymbologies
         } else {
-            supportedSymbologies = formats.map { $0.visionSymbology }
+            // flatMap: one JS format can map to several Vision symbologies
+            // (e.g. CODE_39 covers the plain, checksum and full-ASCII variants).
+            supportedSymbologies = Array(Set(formats.flatMap { $0.visionSymbologies }))
         }
         print("[BarcodeDetectionManager] Barcode formats updated: \(supportedSymbologies)")
     }
@@ -221,8 +271,15 @@ class BarcodeDetectionManager: NSObject, BarcodeScannerProtocol {
     /// - Parameter sampleBuffer: The sample buffer
     /// - Returns: CGImagePropertyOrientation
     private func getImageOrientation(from sampleBuffer: CMSampleBuffer) -> CGImagePropertyOrientation {
-        // For most cases, .up works well
-        // In production, you might want to account for device orientation
+        // `.up` is correct because CameraManager rotates the video-data-output
+        // connection to match the interface orientation, so buffers arrive already
+        // upright. Vision's normalized rects therefore land in the same space as
+        // the preview layer's metadata rects, which is what
+        // CoordinateTransformer relies on.
+        //
+        // If that connection rotation is ever removed, this must become a real
+        // device-orientation mapping or the focus-area test silently targets the
+        // wrong region again.
         return .up
     }
 }
